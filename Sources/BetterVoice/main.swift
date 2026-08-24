@@ -941,7 +941,7 @@ private final class RecordingSoundController {
 }
 
 @MainActor
-private enum SessionStorage {
+enum SessionStorage {
     static let maxAge: TimeInterval = 7 * 24 * 60 * 60
     static let maxBytes: Int64 = 500 * 1_024 * 1_024
 
@@ -980,6 +980,49 @@ private enum SessionStorage {
     static func clear() throws {
         guard FileManager.default.fileExists(atPath: root.path) else { return }
         try FileManager.default.removeItem(at: root)
+    }
+
+    static func savedSessions() -> [SavedSessionSummary] {
+        let manager = FileManager.default
+        guard let folders = try? manager.contentsOfDirectory(
+            at: root,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey, .isSymbolicLinkKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        let sessions = folders.compactMap { folder -> SavedSessionSummary? in
+            guard isBetterVoiceSessionName(folder.lastPathComponent),
+                  let values = try? folder.resourceValues(forKeys: [.contentModificationDateKey, .isDirectoryKey, .isSymbolicLinkKey]),
+                  values.isDirectory == true,
+                  values.isSymbolicLink != true else { return nil }
+
+            let fileNames = (try? manager.contentsOfDirectory(
+                at: folder,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ))?.map(\.lastPathComponent) ?? []
+            let imageNames = SavedSessionBrowser.imageNames(from: fileNames)
+            let markdown = readMarkdown(from: folder.appendingPathComponent("context.md"))
+            return SavedSessionSummary(
+                name: folder.lastPathComponent,
+                modifiedAt: values.contentModificationDate ?? .distantPast,
+                transcript: SavedSessionBrowser.transcriptPreview(from: markdown),
+                imageNames: imageNames
+            )
+        }
+        return SavedSessionBrowser.newestFirst(sessions)
+    }
+
+    private static func readMarkdown(from url: URL) -> String {
+        let maxPreviewBytes = 512 * 1_024
+        guard FileManager.default.fileExists(atPath: url.path),
+              let handle = try? FileHandle(forReadingFrom: url) else { return "" }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: maxPreviewBytes + 1),
+              data.count <= maxPreviewBytes else {
+            return ""
+        }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 
     static func allocatedBytes(in folder: URL) -> Int64 {
@@ -1382,6 +1425,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
     private let recordingHUD = RecordingHUDController()
     private let recordingSounds = RecordingSoundController()
     private let setupWindow = SetupWindowController()
+    private let savedSessionsWindow = SavedSessionsWindowController()
     private let recoveryNotice = RecoveryNoticeController()
     private var inputMonitor: InputMonitor?
     private var detector = CircleGestureDetector()
@@ -1676,7 +1720,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
     @objc private func openSavedSessions() {
         do {
             try FileManager.default.createDirectory(at: SessionStorage.root, withIntermediateDirectories: true)
-            NSWorkspace.shared.open(SessionStorage.root)
+            savedSessionsWindow.show(rootURL: SessionStorage.root)
         } catch {
             showError("Could not open saved sessions", detail: error.localizedDescription)
         }

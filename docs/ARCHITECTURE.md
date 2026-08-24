@@ -14,6 +14,7 @@ Better Voice is a small native Swift app with one executable target and one test
 8. The optional, off-by-default `t5-tiny-gec-hone` ONNX beta cleans up punctuation and sentence structure locally. When enabled, it preloads in the background after launch; incomplete or unavailable results fall back to the raw transcript. Developer casing runs again afterward so technical terms survive the generic pass.
 9. At stop, BetterVoice captures the focused app and field. `SessionOutput` writes `context.md`, sends one text-only paste to that app, then restores the full text-plus-image clipboard.
 10. `SessionStorage` deletes sessions older than 7 days and keeps the remaining folder below 500 MB.
+11. `SavedSessionsWindowController` presents a native, read-only browser for retained sessions. `BetterVoiceCore` supplies newest-first ordering and safe transcript/image-name parsing; the app layer loads bounded Markdown previews and local PNGs.
 
 ## Repository map
 
@@ -23,11 +24,13 @@ Sources/BetterVoice/SetupView.swift            onboarding and actionable recover
 Sources/BetterVoice/GrammarCorrector.swift     optional tiny local grammar pass
 Sources/BetterVoiceCore/DeveloperTextCleanup.swift
                                                 zero-download developer vocabulary pass
+Sources/BetterVoice/SavedSessionsView.swift    saved-session browser and preview window
 Sources/BetterVoiceCore/CircleGestureDetector.swift
 Sources/BetterVoiceCore/RecordingSoundCue.swift
 Sources/BetterVoiceCore/RecordingShortcutState.swift
 Sources/BetterVoiceCore/SessionCompletionPolicy.swift
 Sources/BetterVoiceCore/SessionRetentionPolicy.swift
+Sources/BetterVoiceCore/SavedSessionBrowser.swift saved-session ordering and parsing
 Sources/BetterVoiceCore/TrailSegments.swift   gesture logic shared with tests
 Tests/BetterVoiceCoreTests/                    focused gesture tests
 scripts/build-app.sh                           release build, signing, and launch

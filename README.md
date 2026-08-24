@@ -95,7 +95,7 @@ macOS lets one clipboard contain text, rich text, and image representations, but
 - Saved sessions are capped at 500 MB, including during an active capture; the oldest are removed first.
 - The local speech model is a separate one-time cache of roughly 500 MB.
 - Recordings stop safely at 20 minutes, and abandoned temporary audio is removed on launch.
-- Use **Open Saved Sessions** or **Clear Saved Sessions…** from the menu bar at any time.
+- Use **Open Saved Sessions** to browse retained transcripts and screen captures, reveal a selected session in Finder, or use **Clear Saved Sessions…** to remove them.
 
 A session contains:
 
