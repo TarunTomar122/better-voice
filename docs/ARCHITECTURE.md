@@ -12,8 +12,9 @@ Better Voice is a small native Swift app with one executable target and one test
 6. FluidAudio transcribes the temporary audio file locally.
 7. The developer vocabulary beta applies a small deterministic casing/acronym pass, using the captured app to recognize terminals, editors, and AI chats. It preserves the raw wording and needs no model download.
 8. The optional, off-by-default `t5-tiny-gec-hone` ONNX beta cleans up punctuation and sentence structure locally. When enabled, it preloads in the background after launch; incomplete or unavailable results fall back to the raw transcript. Developer casing runs again afterward so technical terms survive the generic pass.
-9. At stop, BetterVoice captures the focused app and field. `SessionOutput` writes `context.md`, sends one text-only paste to that app, then restores the full text-plus-image clipboard.
-10. `SessionStorage` deletes sessions older than 7 days and keeps the remaining folder below 500 MB.
+9. The user-selected output mode either delivers the cleaned transcript or passes it through the deterministic local `PromptFormatter`; prompt output adds task/response structure and screen-context guidance without a network or language-model call.
+10. At stop, BetterVoice captures the focused app and field. `SessionOutput` writes the delivered text to `context.md`, preserves the raw transcript in `raw-transcript.txt` when the output differs, sends one text-only paste to that app, then restores the full text-plus-image clipboard.
+11. `SessionStorage` deletes sessions older than 7 days and keeps the remaining folder below 500 MB.
 
 ## Repository map
 
@@ -23,6 +24,7 @@ Sources/BetterVoice/SetupView.swift            onboarding and actionable recover
 Sources/BetterVoice/GrammarCorrector.swift     optional tiny local grammar pass
 Sources/BetterVoiceCore/DeveloperTextCleanup.swift
                                                 zero-download developer vocabulary pass
+Sources/BetterVoiceCore/PromptOutput.swift     transcript/prompt output mode and formatter
 Sources/BetterVoiceCore/CircleGestureDetector.swift
 Sources/BetterVoiceCore/RecordingSoundCue.swift
 Sources/BetterVoiceCore/RecordingShortcutState.swift

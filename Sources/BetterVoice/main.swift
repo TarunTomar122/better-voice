@@ -1032,12 +1032,18 @@ private final class SessionOutput {
 
     func finish(
         transcript: String,
+        outputText: String,
         insertionContext: TextInsertion.Context?,
         shouldCopyToClipboard: Bool
     ) throws -> (markdownURL: URL, clipboardCopied: Bool, transcriptInserted: Bool) {
-        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = outputText.trimmingCharacters(in: .whitespacesAndNewlines)
         var markdown = "# BetterVoice session\n\n"
         markdown += trimmed.isEmpty ? "_No transcript captured._\n" : "\(trimmed)\n"
+        if raw != trimmed {
+            let rawURL = folder.appendingPathComponent("raw-transcript.txt")
+            try raw.write(to: rawURL, atomically: true, encoding: .utf8)
+        }
         if !images.isEmpty {
             markdown += "\n## Screen context\n\n"
             for (index, image) in images.enumerated() {
@@ -1374,6 +1380,7 @@ private enum StatusIconState {
 
 @MainActor
 private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private static let outputModeKey = "outputMode"
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let microphones = MicrophoneManager()
     private let recorder = AudioRecorder()
@@ -1394,6 +1401,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
     private var recordingMenuItem: NSMenuItem?
     private var modelMenuItem: NSMenuItem?
     private var microphoneMenu: NSMenu?
+    private var outputModeMenu: NSMenu?
     private var statusAnimationTimer: Timer?
     private var statusFeedbackTimer: Timer?
     private var recordingLimitTimer: Timer?
@@ -1401,6 +1409,18 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
     private var textInsertionContext: TextInsertion.Context?
     private var statusPulse = false
     private var reduceMotion = false
+
+    private var outputMode: BetterVoiceOutputMode {
+        get {
+            BetterVoiceOutputMode(
+                rawValue: UserDefaults.standard.string(forKey: Self.outputModeKey) ?? ""
+            ) ?? .transcript
+        }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: Self.outputModeKey)
+        }
+    }
+
     private lazy var setupModel: SetupModel = {
         let model = SetupModel()
         model.requestMicrophone = { [weak self] in self?.requestMicrophoneAuthorization() }
@@ -1417,6 +1437,10 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         }
         model.setDeveloperCleanup = { [weak self] enabled in
             self?.transcriber.setDeveloperCleanupEnabled(enabled)
+        }
+        model.outputMode = outputMode
+        model.setOutputMode = { [weak self] mode in
+            self?.setOutputMode(mode)
         }
         model.refresh = { [weak self] in self?.refreshSetupModel() }
         model.complete = { [weak self] in
@@ -1457,6 +1481,12 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         microphoneItem.submenu = microphoneMenu
         self.microphoneMenu = microphoneMenu
         menu.addItem(microphoneItem)
+
+        let outputItem = NSMenuItem(title: "Output Mode", action: nil, keyEquivalent: "")
+        let outputModeMenu = NSMenu()
+        outputItem.submenu = outputModeMenu
+        self.outputModeMenu = outputModeMenu
+        menu.addItem(outputItem)
         menu.addItem(NSMenuItem.separator())
 
         let setupItem = NSMenuItem(title: "Getting Started…", action: #selector(showSetup), keyEquivalent: ",")
@@ -1476,6 +1506,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         menu.delegate = self
         statusItem.menu = menu
         refreshMicrophoneMenu()
+        refreshOutputModeMenu()
         refreshModelMenu()
 
         transcriber.onStateChange = { [weak self] in
@@ -1484,6 +1515,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         }
         setupModel.grammarCorrectionEnabled = transcriber.grammarCorrectionEnabled
         setupModel.developerCleanupEnabled = transcriber.developerCleanupEnabled
+        setupModel.outputMode = outputMode
         transcriber.onGrammarStatus = { [weak self] status in
             self?.recordingHUD.showFinishingStatus(status)
             self?.showStatus(status)
@@ -1530,6 +1562,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         guard let statusMenu = statusItem.menu, menu === statusMenu else { return }
         microphones.refresh()
         refreshMicrophoneMenu()
+        refreshOutputModeMenu()
     }
 
     private func refreshMicrophoneMenu() {
@@ -1563,6 +1596,33 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
             unavailable.isEnabled = false
             microphoneMenu.addItem(unavailable)
         }
+    }
+
+    private func refreshOutputModeMenu() {
+        guard let outputModeMenu else { return }
+        outputModeMenu.removeAllItems()
+        for mode in BetterVoiceOutputMode.allCases {
+            let item = NSMenuItem(title: mode.title, action: #selector(selectOutputMode(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = mode.rawValue
+            item.state = mode == outputMode ? .on : .off
+            item.isEnabled = state == .idle
+            outputModeMenu.addItem(item)
+        }
+    }
+
+    @objc private func selectOutputMode(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let mode = BetterVoiceOutputMode(rawValue: rawValue) else { return }
+        setOutputMode(mode)
+    }
+
+    private func setOutputMode(_ mode: BetterVoiceOutputMode) {
+        guard state == .idle else { return }
+        outputMode = mode
+        setupModel.outputMode = mode
+        refreshOutputModeMenu()
+        showStatus("Output: \(mode.title)", resetAfter: 3)
     }
 
     @objc private func selectMicrophone(_ sender: NSMenuItem) {
@@ -1613,6 +1673,8 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         microphones.refresh()
         setupModel.microphoneName = microphones.selectedLabel
         setupModel.microphoneSelectionEnabled = state == .idle
+        setupModel.outputModeSelectionEnabled = state == .idle
+        setupModel.outputMode = outputMode
         setupModel.selectedMicrophoneID = microphones.selectedUID ?? "automatic"
         setupModel.microphoneOptions = [
             SetupMicrophoneOption(
@@ -1859,6 +1921,10 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         let shouldCopyToClipboard = recordingMode == .longForm
         let hadTranscript = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasContext = !(session?.images.isEmpty ?? true)
+        let outputText = outputMode == .prompt
+            ? PromptFormatter.makePrompt(from: transcript, hasScreenContext: hasContext)
+            : transcript
+        let outputLabel = outputMode.title.lowercased()
         let elapsed = recordingStartedAt.map { ProcessInfo.processInfo.systemUptime - $0 } ?? 0
         let disposition = sessionCompletionDisposition(
             hasTranscript: hadTranscript,
@@ -1873,6 +1939,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
                 do {
                     _ = try session.finish(
                         transcript: transcript,
+                        outputText: outputText,
                         insertionContext: textInsertionContext,
                         shouldCopyToClipboard: shouldCopyToClipboard
                     )
@@ -1896,6 +1963,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
             guard let session else { throw BetterVoiceError.sessionUnavailable }
             let result = try session.finish(
                 transcript: transcript,
+                outputText: outputText,
                 insertionContext: textInsertionContext,
                 shouldCopyToClipboard: shouldCopyToClipboard
             )
@@ -1912,15 +1980,15 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
             } else if result.transcriptInserted {
                 showStatus(
                     shouldCopyToClipboard && hasContext
-                        ? "Inserted transcript • context copied"
-                        : "Inserted transcript",
+                        ? "Inserted \(outputLabel) • context copied"
+                        : "Inserted \(outputLabel)",
                     resetAfter: 4
                 )
             } else if result.clipboardCopied {
                 if hadTranscript && hasContext {
-                    showStatus("Copied transcript + context", resetAfter: 4)
+                    showStatus("Copied \(outputLabel) + context", resetAfter: 4)
                 } else if hadTranscript {
-                    showStatus("Copied transcript", resetAfter: 4)
+                    showStatus("Copied \(outputLabel)", resetAfter: 4)
                 } else if hasContext {
                     showStatus("No speech detected • context copied", resetAfter: 4)
                 } else {
@@ -1932,9 +2000,9 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
                     resetAfter: 4
                 )
             } else if !shouldCopyToClipboard {
-                showError("Saved session; transcript was not inserted.")
+                showError("Saved session; \(outputLabel) was not inserted.")
             } else {
-                showError("Saved session; plain-text clipboard fallback used.")
+                showError("Saved session; \(outputLabel) clipboard fallback used.")
             }
             pruneSavedSessions()
         } catch {

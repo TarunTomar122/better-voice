@@ -24,6 +24,12 @@ If you enjoy BetterVoice or any of my other experiments, a coffee helps support 
 
 Each circle captures the complete display beneath the pointer. Multiple circles produce screenshots in the same order you referenced them.
 
+## Output modes
+
+BetterVoice defaults to **Transcript** mode, which inserts the locally cleaned transcription. Switch to **Prompt** mode from the menu bar or **Getting Started…** when dictating to an AI assistant. Prompt mode keeps the spoken request intact, formats it as a clear `Task`/`Response` request, and tells the recipient to use any attached screen captures as context.
+
+Prompt mode is intentionally deterministic and runs entirely on the Mac; it is a prompt structure, not a hidden cloud or language-model rewrite. When it changes the delivered text, the exact cleaned transcript is also retained as `raw-transcript.txt` beside the session's `context.md`, so the original wording remains recoverable.
+
 ## Grammar cleanup (Beta)
 
 Grammar cleanup is off by default. To try the beta, open **Getting Started…**, turn on **Grammar cleanup (Beta)**, and press **Download**. BetterVoice then runs each transcript through the tiny, English-focused [`t5-tiny-gec-hone`](https://huggingface.co/rabden/t5-tiny-gec-hone) model. Its quantized ONNX weights and tokenizer are about 36 MB, stored in `~/Library/Application Support/BetterVoice`, and run locally. When enabled, BetterVoice preloads the cached model in the background after launch so the first recording does not pay the initialization cost. The status bar shows “Polishing transcript locally…” while this step runs. If the model cannot download, exceeds its context limit, or returns an incomplete result, BetterVoice keeps the raw transcript so recording still completes.
@@ -77,6 +83,7 @@ Open the menu-bar icon and choose **Getting Started…**. It shows the live stat
 - **Shortcut does nothing:** enable **Accessibility**, confirm the local model says Ready, and make sure only one BetterVoice process is running. The build script closes the previous process before launching a rebuild.
 - **No screenshot:** enable BetterVoice in **System Settings → Privacy & Security → Screen Recording**, then quit and reopen the app. The setup screen reads the current macOS permission every time; it does not cache an old answer.
 - **Transcript is not inserted:** enable **Accessibility**. The transcript remains on the clipboard and in the saved session when the target app blocks paste events.
+- **Prompt mode is not what you want:** choose **Transcript** under **Output Mode** in the menu bar or **Getting Started…** before recording.
 - **Wrong microphone:** choose the device under **Microphone** in the menu-bar menu.
 - **Model download failed:** reopen **Getting Started…** and retry from the model row.
 - **Grammar model download failed:** reopen **Getting Started…** and retry **Download** on the grammar cleanup row.
@@ -102,6 +109,7 @@ A session contains:
 ```text
 <timestamp>-<id>/
 ├── context.md
+├── raw-transcript.txt  (Prompt mode only, when output differs)
 ├── context-1.png
 └── context-2.png
 ```

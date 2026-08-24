@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import BetterVoiceCore
 
 struct SetupMicrophoneOption: Identifiable, Equatable {
     let id: String
@@ -24,6 +25,8 @@ final class SetupModel: ObservableObject {
     @Published var grammarBusy = false
     @Published var developerCleanupEnabled = true
     @Published var grammarSelectionEnabled = true
+    @Published var outputMode = BetterVoiceOutputMode.transcript
+    @Published var outputModeSelectionEnabled = true
 
     var requestMicrophone: () -> Void = {}
     var chooseMicrophone: (String) -> Void = { _ in }
@@ -33,6 +36,7 @@ final class SetupModel: ObservableObject {
     var downloadGrammarModel: () -> Void = {}
     var setGrammarCorrection: (Bool) -> Void = { _ in }
     var setDeveloperCleanup: (Bool) -> Void = { _ in }
+    var setOutputMode: (BetterVoiceOutputMode) -> Void = { _ in }
     var refresh: () -> Void = {}
     var complete: () -> Void = {}
 
@@ -138,6 +142,7 @@ struct SetupView: View {
                         busy: model.modelBusy,
                         action: model.downloadModel
                     )
+                    OutputModeSetupRow(model: model)
                     GrammarSetupRow(
                         title: "Grammar cleanup (Beta)",
                         detail: "t5-tiny-gec-hone runs locally after transcription to fix punctuation and sentence structure. It falls back to the raw transcript if unavailable.",
@@ -187,6 +192,37 @@ struct SetupView: View {
         }
         .frame(minWidth: 720, idealWidth: 720, minHeight: 620, idealHeight: 680)
         .onAppear { model.refresh() }
+    }
+}
+
+private struct OutputModeSetupRow: View {
+    @ObservedObject var model: SetupModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Output mode").fontWeight(.medium)
+                Spacer()
+                Picker("Output mode", selection: Binding(
+                    get: { model.outputMode },
+                    set: { model.setOutputMode($0) }
+                )) {
+                    ForEach(BetterVoiceOutputMode.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 190)
+                .disabled(!model.outputModeSelectionEnabled)
+                .accessibilityLabel("Output mode")
+            }
+            Text(model.outputMode.detail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 2)
     }
 }
 
