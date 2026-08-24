@@ -37,11 +37,15 @@ final class SetupModel: ObservableObject {
     var complete: () -> Void = {}
 
     var readyCount: Int {
-        [microphoneGranted, screenGranted, accessibilityGranted, modelReady].filter { $0 }.count
+        [microphoneGranted, accessibilityGranted, modelReady].filter { $0 }.count
+    }
+
+    var dictationReady: Bool {
+        readyCount == 3
     }
 
     var setupComplete: Bool {
-        readyCount == 4
+        dictationReady && screenGranted
     }
 }
 
@@ -73,22 +77,24 @@ struct SetupView: View {
                 }
 
                 HStack(spacing: 12) {
-                    Image(systemName: model.setupComplete ? "checkmark.seal.fill" : "sparkles")
+                    Image(systemName: model.setupComplete ? "checkmark.seal.fill" : model.dictationReady ? "checkmark.circle.fill" : "sparkles")
                         .font(.title2)
-                        .foregroundStyle(model.setupComplete ? Color.green : Color.accentColor)
+                        .foregroundStyle(model.setupComplete ? Color.green : model.dictationReady ? Color.orange : Color.accentColor)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(model.setupComplete ? "Ready to record" : "Finish setup to get started")
+                        Text(model.setupComplete ? "Ready to record" : model.dictationReady ? "Ready to dictate" : "Finish setup to get started")
                             .fontWeight(.semibold)
                         Text(model.setupComplete
                              ? "Use ⌥ for a quick note or ⌘⌥ for a longer explanation."
-                             : "\(model.readyCount) of 4 essentials are ready. You can return here any time from the menu bar.")
+                             : model.dictationReady
+                             ? "All 3 dictation essentials are ready. Screen Recording is off, so you can record without screen context."
+                             : "\(model.readyCount) of 3 dictation essentials are ready. You can return here any time from the menu bar.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    ProgressView(value: Double(model.readyCount), total: 4)
+                    ProgressView(value: Double(model.readyCount), total: 3)
                         .frame(width: 110)
-                        .accessibilityLabel("Setup progress")
+                        .accessibilityLabel("Dictation setup progress")
                 }
                 .padding(14)
                 .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
