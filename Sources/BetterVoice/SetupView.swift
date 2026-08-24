@@ -35,105 +35,157 @@ final class SetupModel: ObservableObject {
     var setDeveloperCleanup: (Bool) -> Void = { _ in }
     var refresh: () -> Void = {}
     var complete: () -> Void = {}
+
+    var readyCount: Int {
+        [microphoneGranted, screenGranted, accessibilityGranted, modelReady].filter { $0 }.count
+    }
+
+    var setupComplete: Bool {
+        readyCount == 4
+    }
 }
 
 struct SetupView: View {
     @ObservedObject var model: SetupModel
 
+    private enum Links {
+        static let guide = URL(string: "https://github.com/TarunTomar122/better-voice#use-it")!
+        static let contributing = URL(string: "https://github.com/TarunTomar122/better-voice/blob/main/CONTRIBUTING.md")!
+        static let issues = URL(string: "https://github.com/TarunTomar122/better-voice/issues")!
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .top, spacing: 20) {
-                VStack(alignment: .leading, spacing: 9) {
-                    Label("BetterVoice", systemImage: "waveform.circle.fill")
-                        .font(.system(size: 26, weight: .semibold))
-                    Text("Talk. Point. Give your agent the whole thought.")
-                        .font(.title3)
-                    Text("Speak normally, circle anything important, and BetterVoice keeps the words and full-screen visual context together.")
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(alignment: .top, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 9) {
+                        Label("BetterVoice", systemImage: "waveform.circle.fill")
+                            .font(.system(size: 26, weight: .semibold))
+                        Text("Talk. Point. Give your agent the whole thought.")
+                            .font(.title3)
+                        Text("Speak normally, circle anything important, and BetterVoice keeps the words and full-screen visual context together.")
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 4)
+                    CapturePreview()
+                        .frame(width: 250, height: 150)
                 }
-                Spacer(minLength: 4)
-                CapturePreview()
-                    .frame(width: 250, height: 150)
-            }
 
-            HStack(spacing: 28) {
-                ShortcutGuide(keys: "⌥", title: "Quick note", detail: "Hold to record. Release to finish.")
-                ShortcutGuide(keys: "⌘⌥", title: "Long explanation", detail: "Press once to start, again to finish.")
-            }
+                HStack(spacing: 12) {
+                    Image(systemName: model.setupComplete ? "checkmark.seal.fill" : "sparkles")
+                        .font(.title2)
+                        .foregroundStyle(model.setupComplete ? Color.green : Color.accentColor)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(model.setupComplete ? "Ready to record" : "Finish setup to get started")
+                            .fontWeight(.semibold)
+                        Text(model.setupComplete
+                             ? "Use ⌥ for a quick note or ⌘⌥ for a longer explanation."
+                             : "\(model.readyCount) of 4 essentials are ready. You can return here any time from the menu bar.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    ProgressView(value: Double(model.readyCount), total: 4)
+                        .frame(width: 110)
+                        .accessibilityLabel("Setup progress")
+                }
+                .padding(14)
+                .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
 
-            Divider()
+                HStack(spacing: 10) {
+                    Link(destination: Links.guide) {
+                        Label("Read the guide", systemImage: "book")
+                    }
+                    .buttonStyle(.bordered)
+                    Link(destination: Links.contributing) {
+                        Label("Start contributing", systemImage: "hammer")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Link(destination: Links.issues) {
+                        Label("Report a problem", systemImage: "exclamationmark.bubble")
+                    }
+                    .buttonStyle(.bordered)
+                }
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Setup")
-                    .font(.headline)
-                MicrophoneSetupRow(model: model)
-                SetupRow(
-                    title: "Screen Recording",
-                    detail: model.screenGranted ? "Ready to capture circles" : "Needed only when you circle the screen",
-                    ready: model.screenGranted,
-                    action: model.requestScreen
-                )
-                SetupRow(
-                    title: "Accessibility",
-                    detail: model.accessibilityGranted ? "Shortcuts and transcript insertion are ready" : "Needed for global shortcuts and returning text",
-                    ready: model.accessibilityGranted,
-                    action: model.requestAccessibility
-                )
-                SetupRow(
-                    title: "Local transcription model",
-                    detail: model.modelStatus,
-                    ready: model.modelReady,
-                    busy: model.modelBusy,
-                    action: model.downloadModel
-                )
-                GrammarSetupRow(
-                    title: "Grammar cleanup (Beta)",
-                    detail: "t5-tiny-gec-hone runs locally after transcription to fix punctuation and sentence structure. It falls back to the raw transcript if unavailable.",
-                    status: model.grammarStatus,
-                    ready: model.grammarReady,
-                    busy: model.grammarBusy,
-                    selectionEnabled: model.grammarSelectionEnabled,
-                    download: model.downloadGrammarModel,
-                    isEnabled: Binding(
-                        get: { model.grammarCorrectionEnabled },
-                        set: {
-                            model.grammarCorrectionEnabled = $0
-                            model.setGrammarCorrection($0)
-                        }
+                HStack(spacing: 28) {
+                    ShortcutGuide(keys: "⌥", title: "Quick note", detail: "Hold to record. Release to finish.")
+                    ShortcutGuide(keys: "⌘⌥", title: "Long explanation", detail: "Press once to start, again to finish.")
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Setup")
+                        .font(.headline)
+                    MicrophoneSetupRow(model: model)
+                    SetupRow(
+                        title: "Screen Recording",
+                        detail: model.screenGranted ? "Ready to capture circles" : "Needed only when you circle the screen",
+                        ready: model.screenGranted,
+                        action: model.requestScreen
                     )
-                )
-                GrammarSetupRow(
-                    title: "Developer vocabulary (Beta)",
-                    detail: "A fast local pass for technical terms such as npm, GitHub, SwiftUI, API, and JSON. No extra model download.",
-                    status: "Preserves your wording and adapts acronyms for developer apps.",
-                    ready: true,
-                    busy: false,
-                    selectionEnabled: model.grammarSelectionEnabled,
-                    download: {},
-                    toggleAccessibilityLabel: "Enable developer vocabulary beta",
-                    isEnabled: Binding(
-                        get: { model.developerCleanupEnabled },
-                        set: {
-                            model.developerCleanupEnabled = $0
-                            model.setDeveloperCleanup($0)
-                        }
+                    SetupRow(
+                        title: "Accessibility",
+                        detail: model.accessibilityGranted ? "Shortcuts and transcript insertion are ready" : "Needed for global shortcuts and returning text",
+                        ready: model.accessibilityGranted,
+                        action: model.requestAccessibility
                     )
-                )
-            }
+                    SetupRow(
+                        title: "Local transcription model",
+                        detail: model.modelStatus,
+                        ready: model.modelReady,
+                        busy: model.modelBusy,
+                        action: model.downloadModel
+                    )
+                    GrammarSetupRow(
+                        title: "Grammar cleanup (Beta)",
+                        detail: "t5-tiny-gec-hone runs locally after transcription to fix punctuation and sentence structure. It falls back to the raw transcript if unavailable.",
+                        status: model.grammarStatus,
+                        ready: model.grammarReady,
+                        busy: model.grammarBusy,
+                        selectionEnabled: model.grammarSelectionEnabled,
+                        download: model.downloadGrammarModel,
+                        isEnabled: Binding(
+                            get: { model.grammarCorrectionEnabled },
+                            set: {
+                                model.grammarCorrectionEnabled = $0
+                                model.setGrammarCorrection($0)
+                            }
+                        )
+                    )
+                    GrammarSetupRow(
+                        title: "Developer vocabulary (Beta)",
+                        detail: "A fast local pass for technical terms such as npm, GitHub, SwiftUI, API, and JSON. No extra model download.",
+                        status: "Preserves your wording and adapts acronyms for developer apps.",
+                        ready: true,
+                        busy: false,
+                        selectionEnabled: model.grammarSelectionEnabled,
+                        download: {},
+                        toggleAccessibilityLabel: "Enable developer vocabulary beta",
+                        isEnabled: Binding(
+                            get: { model.developerCleanupEnabled },
+                            set: {
+                                model.developerCleanupEnabled = $0
+                                model.setDeveloperCleanup($0)
+                            }
+                        )
+                    )
+                }
 
-            HStack {
-                Text("Sessions stay in Desktop/BetterVoice for up to 7 days, capped at 500 MB.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Refresh") { model.refresh() }
-                Button("Done") { model.complete() }
-                    .keyboardShortcut(.defaultAction)
+                HStack {
+                    Text("Sessions stay in Desktop/BetterVoice for up to 7 days, capped at 500 MB.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Refresh") { model.refresh() }
+                    Button("Done") { model.complete() }
+                        .keyboardShortcut(.defaultAction)
+                }
             }
+            .padding(28)
         }
-        .padding(28)
-        .frame(width: 720)
+        .frame(minWidth: 720, idealWidth: 720, minHeight: 620, idealHeight: 680)
         .onAppear { model.refresh() }
     }
 }

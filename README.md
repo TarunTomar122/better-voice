@@ -114,6 +114,10 @@ swift test -Xswiftc -strict-concurrency=complete
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the implementation map.
 
+## Contributing
+
+New to the project? Start with the [contribution guide](CONTRIBUTING.md). It covers the local setup, test command, architecture boundaries, and the kinds of changes that are useful to BetterVoice.
+
 Current scope: English transcription, Apple Silicon macOS 14+, and an experimental downloadable release. The release is not notarized with a Developer ID certificate yet. Circle recognition is intentionally forgiving; you do not need to draw a perfect circle.
 
 Inspired by the fluidity of Wispr Flow. BetterVoice is not affiliated with Wispr Flow.
