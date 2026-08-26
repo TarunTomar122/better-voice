@@ -16,7 +16,7 @@ BetterVoice is an experimental, open-source macOS menu-bar app. It transcribes s
 
 Each circle captures the complete display beneath the pointer. Multiple circles produce screenshots in the same order you referenced them.
 
-Open **Settings…** from the menu-bar icon to choose a microphone, change the dictation language, tune the circle threshold, and customize the shortcuts. In **Shortcuts**, click the current key, wait for **Listening…**, and press the exact combination you want. It appears in place immediately; click **Done** when finished. **Reset shortcuts to defaults** restores both shortcut bindings. The defaults are 340° for circle detection, `⌥` for quick notes, and `⌘⌥` for long explanations.
+Open **Settings…** from the menu-bar icon to choose a microphone, change the dictation language, tune the circle threshold, and customize the shortcuts. In **Shortcuts**, click the current key, wait for **Listening…**, and press the exact combination you want. It appears in place immediately; click **Done** when finished. **Reset shortcuts to defaults** restores both shortcut bindings and trigger styles. Quick notes support hold, tap-to-toggle, and double-tap-to-toggle when the shortcut is modifier-only; long explanations support press-to-toggle and double-tap-to-toggle for modifier-only shortcuts. Hold delay is adjustable from 50–500 ms (140 ms by default). The defaults are 340° for circle detection, hold `⌥` for quick notes, and press `⌘⌥` for long explanations.
 
 ## Dictation language
 

@@ -74,6 +74,37 @@ public enum QuickNoteHoldDelay: Sendable {
     }
 }
 
+/// Resolves exact and partial states for a modifier-only shortcut.
+public struct ModifierBindingState: Equatable, Sendable {
+    public let active: Bool
+    public let partial: Bool
+
+    public init(active: Bool, partial: Bool) {
+        self.active = active
+        self.partial = partial
+    }
+
+    public init(
+        bindingCommand: Bool,
+        bindingOption: Bool,
+        bindingControl: Bool,
+        bindingShift: Bool,
+        command: Bool,
+        option: Bool,
+        control: Bool,
+        shift: Bool
+    ) {
+        let binding = [bindingCommand, bindingOption, bindingControl, bindingShift]
+        let pressed = [command, option, control, shift]
+        active = binding == pressed
+
+        let requiredCount = binding.filter { $0 }.count
+        let hasRequiredModifier = zip(binding, pressed).contains { $0 && $1 }
+        let hasUnboundModifier = zip(binding, pressed).contains { !$0 && $1 }
+        partial = !active && requiredCount > 1 && hasRequiredModifier && !hasUnboundModifier
+    }
+}
+
 /// Detects a double-tap on a lone modifier key without treating holds or
 /// modifier+key combos as taps.
 public struct ModifierDoubleTapDetector: Sendable {
@@ -84,6 +115,7 @@ public struct ModifierDoubleTapDetector: Sendable {
     private var modifierDownAt: TimeInterval?
     private var firstTapReleasedAt: TimeInterval?
     private var comboInterrupted = false
+    private var ignoreRelease = false
 
     public init() {}
 
@@ -92,6 +124,7 @@ public struct ModifierDoubleTapDetector: Sendable {
         modifierDownAt = nil
         firstTapReleasedAt = nil
         comboInterrupted = false
+        ignoreRelease = false
     }
 
     public mutating func nonModifierKeyPressed() {
@@ -101,11 +134,13 @@ public struct ModifierDoubleTapDetector: Sendable {
 
     public mutating func modifierChanged(active: Bool, now: TimeInterval) -> Bool {
         if active {
+            guard !modifierPressed else { return false }
             if let armedAt = firstTapReleasedAt {
                 if now - armedAt <= Self.doubleTapInterval {
                     reset()
                     modifierPressed = true
                     modifierDownAt = now
+                    ignoreRelease = true
                     return true
                 }
                 firstTapReleasedAt = nil
@@ -120,6 +155,13 @@ public struct ModifierDoubleTapDetector: Sendable {
         modifierPressed = false
         let downAt = modifierDownAt
         modifierDownAt = nil
+
+        if ignoreRelease {
+            ignoreRelease = false
+            firstTapReleasedAt = nil
+            comboInterrupted = false
+            return false
+        }
 
         guard let downAt else { return false }
         let held = now - downAt
@@ -155,6 +197,7 @@ public struct ModifierToggleTapDetector: Sendable {
     /// Returns `true` when a completed short tap should toggle recording.
     public mutating func modifierChanged(active: Bool, now: TimeInterval) -> Bool {
         if active {
+            guard !modifierPressed else { return false }
             comboInterrupted = false
             modifierPressed = true
             modifierDownAt = now

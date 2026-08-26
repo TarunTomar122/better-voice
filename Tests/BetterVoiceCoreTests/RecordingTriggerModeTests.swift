@@ -45,6 +45,23 @@ final class ModifierDoubleTapDetectorTests: XCTestCase {
         detector.reset()
         XCTAssertFalse(detector.modifierChanged(active: true, now: 0.2))
     }
+
+    func testRepeatedModifierEventDoesNotShortenHold() {
+        var detector = ModifierDoubleTapDetector()
+        XCTAssertFalse(detector.modifierChanged(active: true, now: 0))
+        XCTAssertFalse(detector.modifierChanged(active: true, now: 0.2))
+        XCTAssertFalse(detector.modifierChanged(active: false, now: 0.3))
+        XCTAssertFalse(detector.modifierChanged(active: true, now: 0.4))
+    }
+
+    func testSecondTapReleaseDoesNotArmAnotherTap() {
+        var detector = ModifierDoubleTapDetector()
+        XCTAssertFalse(detector.modifierChanged(active: true, now: 0))
+        XCTAssertFalse(detector.modifierChanged(active: false, now: 0.1))
+        XCTAssertTrue(detector.modifierChanged(active: true, now: 0.2))
+        XCTAssertFalse(detector.modifierChanged(active: false, now: 0.3))
+        XCTAssertFalse(detector.modifierChanged(active: true, now: 0.4))
+    }
 }
 
 final class ModifierToggleTapDetectorTests: XCTestCase {
@@ -66,9 +83,78 @@ final class ModifierToggleTapDetectorTests: XCTestCase {
         detector.nonModifierKeyPressed()
         XCTAssertFalse(detector.modifierChanged(active: false, now: 0.1))
     }
+
+    func testRepeatedModifierEventDoesNotShortenHold() {
+        var detector = ModifierToggleTapDetector()
+        XCTAssertFalse(detector.modifierChanged(active: true, now: 0))
+        XCTAssertFalse(detector.modifierChanged(active: true, now: 0.2))
+        XCTAssertFalse(detector.modifierChanged(active: false, now: 0.3))
+    }
 }
 
 final class RecordingTriggerModeTests: XCTestCase {
+    func testCommandOptionUsesPartialStateOnlyForItsOwnModifiers() {
+        XCTAssertEqual(
+            ModifierBindingState(
+                bindingCommand: true,
+                bindingOption: true,
+                bindingControl: false,
+                bindingShift: false,
+                command: true,
+                option: false,
+                control: false,
+                shift: false
+            ),
+            ModifierBindingState(active: false, partial: true)
+        )
+    }
+
+    func testOptionBindingDoesNotBecomePartialWhenCommandIsHeld() {
+        XCTAssertEqual(
+            ModifierBindingState(
+                bindingCommand: false,
+                bindingOption: true,
+                bindingControl: false,
+                bindingShift: false,
+                command: true,
+                option: true,
+                control: false,
+                shift: false
+            ),
+            ModifierBindingState(active: false, partial: false)
+        )
+    }
+
+    func testModifierChordWithExtraModifierIsNeitherActiveNorPartial() {
+        let state = ModifierBindingState(
+            bindingCommand: true,
+            bindingOption: true,
+            bindingControl: false,
+            bindingShift: false,
+            command: true,
+            option: false,
+            control: false,
+            shift: true
+        )
+        XCTAssertFalse(state.active)
+        XCTAssertFalse(state.partial)
+    }
+
+    func testFullModifierChordIsActiveAndNotPartial() {
+        let state = ModifierBindingState(
+            bindingCommand: true,
+            bindingOption: true,
+            bindingControl: false,
+            bindingShift: false,
+            command: true,
+            option: true,
+            control: false,
+            shift: false
+        )
+        XCTAssertTrue(state.active)
+        XCTAssertFalse(state.partial)
+    }
+
     func testQuickModesForModifierOnlyBinding() {
         XCTAssertEqual(
             RecordingTriggerMode.quickAvailableModes(modifierOnly: true),

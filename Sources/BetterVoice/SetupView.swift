@@ -606,6 +606,12 @@ struct SetupView: View {
         if let quickHoldDelayMilliseconds {
             configuration.quickHoldDelayMilliseconds = QuickNoteHoldDelay.clamp(quickHoldDelayMilliseconds)
         }
+        let quickModes = RecordingTriggerMode.quickAvailableModes(
+            modifierOnly: configuration.quick.isModifierOnly
+        )
+        if !quickModes.contains(configuration.quickTriggerMode) {
+            configuration.quickTriggerMode = quickModes.first ?? .hold
+        }
         guard configuration.quick != configuration.long else {
             model.hotkeyError = "Quick note and long explanation need different shortcuts."
             return

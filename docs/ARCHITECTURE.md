@@ -4,7 +4,7 @@ Better Voice is a small native Swift app with one executable target and one test
 
 ## Recording flow
 
-1. Global shortcut monitoring starts push-to-talk after a short hold, or toggles long-form recording. The default bindings are `⌥` and `⌘⌥`; both can be changed from Settings → Shortcuts, where a captured combination is applied in place and one reset action restores both defaults.
+1. `InputMonitor` watches the configured shortcuts and applies their trigger modes. Quick notes default to hold `⌥`; long-form recording defaults to press-to-toggle `⌘⌥`. Modifier-only bindings can use hold, tap-to-toggle, or double-tap-to-toggle where the UI allows it, with a configurable 50–500 ms quick-note hold delay. Modifier events are filtered to the bound keys so unrelated chords do not start a recording. Settings → Shortcuts applies captured combinations in place and one reset action restores the defaults.
 2. `AVAudioEngine` records the selected microphone while the HUD displays its live level.
 3. Native `Purr` and `Pop` cues mark the listening start and finish.
 4. Mouse events feed `CircleGestureDetector`; the overlay renders the trail without appearing in screenshots.
@@ -33,6 +33,7 @@ Sources/BetterVoiceCore/TranscriptionLanguage.swift
                                                 dictation language and the model it needs
 Sources/BetterVoiceCore/CircleGestureDetector.swift
 Sources/BetterVoiceCore/RecordingSoundCue.swift
+Sources/BetterVoiceCore/RecordingTriggerMode.swift
 Sources/BetterVoiceCore/RecordingShortcutState.swift
 Sources/BetterVoiceCore/SessionCompletionPolicy.swift
 Sources/BetterVoiceCore/SessionRetentionPolicy.swift

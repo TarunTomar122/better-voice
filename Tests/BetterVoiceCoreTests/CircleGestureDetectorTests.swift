@@ -87,6 +87,23 @@ final class CircleGestureDetectorTests: XCTestCase {
         XCTAssertEqual(shortcut.flagsChanged(command: true, option: true), [.toggleLongForm])
     }
 
+    func testCommandAloneDoesNotActivateLongShortcut() {
+        var shortcut = RecordingShortcutState()
+
+        XCTAssertEqual(shortcut.flagsChanged(command: true, option: false), [])
+        XCTAssertEqual(shortcut.flagsChanged(command: false, option: false), [])
+    }
+
+    func testCompleteCommandOptionChordCanToggleOnAndOff() {
+        var shortcut = RecordingShortcutState()
+
+        XCTAssertEqual(shortcut.flagsChanged(command: true, option: false), [])
+        XCTAssertEqual(shortcut.flagsChanged(command: true, option: true), [.toggleLongForm])
+        XCTAssertEqual(shortcut.flagsChanged(command: true, option: true), [])
+        XCTAssertEqual(shortcut.flagsChanged(command: false, option: false), [])
+        XCTAssertEqual(shortcut.flagsChanged(command: true, option: true), [.toggleLongForm])
+    }
+
     func testTrailSegmentsSkipPausesAndPointerJumps() {
         XCTAssertEqual(trailSegments(points: [], times: []), [])
         XCTAssertEqual(
