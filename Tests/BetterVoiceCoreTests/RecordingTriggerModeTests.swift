@@ -71,23 +71,33 @@ final class ModifierToggleTapDetectorTests: XCTestCase {
 final class RecordingTriggerModeTests: XCTestCase {
     func testQuickModesForModifierOnlyBinding() {
         XCTAssertEqual(
-            RecordingTriggerMode.availableModes(forQuick: true, modifierOnly: true),
-            [.hold, .toggle, .doubleTap]
+            RecordingTriggerMode.quickAvailableModes(modifierOnly: true),
+            [.hold, .doubleTap]
         )
     }
 
     func testQuickModesForKeyComboBinding() {
         XCTAssertEqual(
-            RecordingTriggerMode.availableModes(forQuick: true, modifierOnly: false),
-            [.hold, .toggle]
+            RecordingTriggerMode.quickAvailableModes(modifierOnly: false),
+            [.hold]
         )
     }
 
-    func testLongModesForModifierOnlyBinding() {
-        XCTAssertEqual(
-            RecordingTriggerMode.availableModes(forQuick: false, modifierOnly: true),
-            [.toggle, .doubleTap]
+    func testQuickHoldDetailIncludesMilliseconds() {
+        XCTAssertTrue(
+            RecordingTriggerMode.quickHoldDetail(bindingLabel: "⌥", holdDelayMilliseconds: 200).contains("200 ms")
         )
+    }
+
+    func testLongDisabledDetailMentionsBinding() {
+        XCTAssertTrue(
+            RecordingTriggerMode.longDisabledDetail(bindingLabel: "⌘⌥").contains("⌘⌥")
+        )
+    }
+
+    func testHoldDelayMaximumIsOneSecond() {
+        XCTAssertEqual(QuickNoteHoldDelay.maximumMilliseconds, 1000)
+        XCTAssertEqual(QuickNoteHoldDelay.clamp(2000), 1000)
     }
 
     func testHoldDetailIncludesMilliseconds() {

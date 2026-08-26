@@ -57,14 +57,14 @@ struct HotkeyConfiguration: Equatable, Sendable {
     var quick: HotkeyBinding
     var long: HotkeyBinding
     var quickTriggerMode: RecordingTriggerMode
-    var longTriggerMode: RecordingTriggerMode
+    var longNoteEnabled: Bool
     var quickHoldDelayMilliseconds: Int
 
     static let standard = HotkeyConfiguration(
         quick: .option,
         long: .commandOption,
         quickTriggerMode: .hold,
-        longTriggerMode: .toggle,
+        longNoteEnabled: true,
         quickHoldDelayMilliseconds: QuickNoteHoldDelay.defaultMilliseconds
     )
 }
@@ -93,7 +93,7 @@ final class SetupModel: ObservableObject {
     @Published var hotkeyConfiguration = HotkeyConfiguration.standard
     @Published var hotkeyError: String?
     @Published var quickNoteTriggerMode: RecordingTriggerMode = .hold
-    @Published var longNoteTriggerMode: RecordingTriggerMode = .toggle
+    @Published var longNoteEnabled = true
     @Published var quickNoteHoldDelayMilliseconds = QuickNoteHoldDelay.defaultMilliseconds
 
     var requestMicrophone: () -> Void = {}
@@ -265,18 +265,21 @@ struct SetupView: View {
                 ShortcutGuide(
                     keys: model.hotkeyConfiguration.quick.label,
                     title: "Quick note",
-                    detail: model.quickNoteTriggerMode.detail(
-                        bindingLabel: model.hotkeyConfiguration.quick.label,
-                        holdDelayMilliseconds: model.quickNoteHoldDelayMilliseconds
-                    )
+                    detail: model.quickNoteTriggerMode == .doubleTap
+                        ? "Double-tap to toggle"
+                        : RecordingTriggerMode.quickHoldDetail(
+                            bindingLabel: model.hotkeyConfiguration.quick.label,
+                            holdDelayMilliseconds: model.quickNoteHoldDelayMilliseconds
+                        )
                 )
                 ShortcutGuide(
                     keys: model.hotkeyConfiguration.long.label,
                     title: "Long explanation",
-                    detail: model.longNoteTriggerMode.detail(
-                        bindingLabel: model.hotkeyConfiguration.long.label,
-                        holdDelayMilliseconds: model.quickNoteHoldDelayMilliseconds
-                    )
+                    detail: model.longNoteEnabled
+                        ? "Press to toggle"
+                        : RecordingTriggerMode.longDisabledDetail(
+                            bindingLabel: model.hotkeyConfiguration.long.label
+                        )
                 )
             }
         }
@@ -287,7 +290,9 @@ struct SetupView: View {
             MicrophoneSetupRow(model: model)
             SetupRow(
                 title: "Accessibility",
-                detail: model.accessibilityGranted ? "Shortcuts and transcript insertion are ready" : "Needed for global shortcuts and returning text",
+                detail: model.accessibilityGranted
+                    ? "Shortcuts and transcript insertion are ready"
+                    : "Needed for global shortcuts, paste, and returning text",
                 ready: model.accessibilityGranted,
                 action: model.requestAccessibility
             )
@@ -391,41 +396,13 @@ struct SetupView: View {
 
     private var shortcuts: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Each recording mode has its own shortcut and trigger style. Changes apply while BetterVoice is idle.")
+            Text("Quick note can hold to record or double-tap Option. Long explanation uses your Command shortcut and can be turned off.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            recordingShortcutCard(
-                title: "Quick note",
-                binding: Binding(
-                    get: { model.hotkeyConfiguration.quick },
-                    set: { value in updateHotkeys(quick: value) }
-                ),
-                triggerMode: Binding(
-                    get: { model.quickNoteTriggerMode },
-                    set: { value in updateHotkeys(quickTriggerMode: value) }
-                ),
-                holdDelayMilliseconds: Binding(
-                    get: { model.quickNoteHoldDelayMilliseconds },
-                    set: { value in updateHotkeys(quickHoldDelayMilliseconds: value) }
-                ),
-                forQuick: true
-            )
-
-            recordingShortcutCard(
-                title: "Long explanation",
-                binding: Binding(
-                    get: { model.hotkeyConfiguration.long },
-                    set: { value in updateHotkeys(long: value) }
-                ),
-                triggerMode: Binding(
-                    get: { model.longNoteTriggerMode },
-                    set: { value in updateHotkeys(longTriggerMode: value) }
-                ),
-                holdDelayMilliseconds: nil,
-                forQuick: false
-            )
+            quickNoteShortcutCard
+            longExplanationShortcutCard
 
             if let hotkeyError = model.hotkeyError {
                 Label(hotkeyError, systemImage: "exclamationmark.triangle")
@@ -445,75 +422,117 @@ struct SetupView: View {
         }
     }
 
-    private func recordingShortcutCard(
-        title: String,
-        binding: Binding<HotkeyBinding>,
-        triggerMode: Binding<RecordingTriggerMode>,
-        holdDelayMilliseconds: Binding<Int>?,
-        forQuick: Bool
-    ) -> some View {
-        let modes = RecordingTriggerMode.availableModes(
-            forQuick: forQuick,
-            modifierOnly: binding.wrappedValue.isModifierOnly
+    private var quickNoteShortcutCard: some View {
+        let modes = RecordingTriggerMode.quickAvailableModes(
+            modifierOnly: model.hotkeyConfiguration.quick.isModifierOnly
         )
-        let resolvedMode = modes.contains(triggerMode.wrappedValue)
-            ? triggerMode.wrappedValue
-            : (modes.first ?? .toggle)
-        let detail = resolvedMode.detail(
-            bindingLabel: binding.wrappedValue.label,
-            holdDelayMilliseconds: holdDelayMilliseconds?.wrappedValue
-                ?? QuickNoteHoldDelay.defaultMilliseconds
-        )
+        let resolvedMode = modes.contains(model.quickNoteTriggerMode)
+            ? model.quickNoteTriggerMode
+            : .hold
+        let detail = resolvedMode == .hold
+            ? RecordingTriggerMode.quickHoldDetail(
+                bindingLabel: model.hotkeyConfiguration.quick.label,
+                holdDelayMilliseconds: model.quickNoteHoldDelayMilliseconds
+            )
+            : resolvedMode.detail(
+                bindingLabel: model.hotkeyConfiguration.quick.label,
+                holdDelayMilliseconds: model.quickNoteHoldDelayMilliseconds
+            )
 
         return VStack(alignment: .leading, spacing: 14) {
-            HotkeyRecordingRow(title: title, detail: detail, binding: binding)
-
-            Divider()
-
-            Text("Trigger")
-                .font(.headline)
-
-            Picker("\(title) trigger", selection: Binding(
-                get: { resolvedMode },
-                set: { triggerMode.wrappedValue = $0 }
-            )) {
-                ForEach(modes, id: \.self) { mode in
-                    Text(forQuick ? mode.quickPickerLabel : mode.pickerLabel).tag(mode)
+            HotkeyRecordingRow(
+                title: "Quick note",
+                detail: detail,
+                binding: Binding(
+                    get: { model.hotkeyConfiguration.quick },
+                    set: { value in updateHotkeys(quick: value) }
+                )
+            ) {
+                if model.hotkeyConfiguration.quick.isModifierOnly {
+                    Picker("Quick note trigger", selection: Binding(
+                        get: { resolvedMode },
+                        set: { updateHotkeys(quickTriggerMode: $0) }
+                    )) {
+                        ForEach(modes, id: \.self) { mode in
+                            Text(mode.quickPickerLabel).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 196)
+                    .accessibilityLabel("Quick note trigger")
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: .infinity)
 
-            if forQuick, resolvedMode == .hold, let holdDelayMilliseconds {
-                holdDelayControls(holdDelayMilliseconds)
-            } else if resolvedMode == .doubleTap {
-                Text("Double-tap avoids holding modifiers while you use Option-based shortcuts in other apps.")
+            if model.hotkeyConfiguration.quick.isModifierOnly, resolvedMode == .doubleTap {
+                Text("Double-tap avoids holding Option while you use Option-based shortcuts in other apps.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-            } else if resolvedMode == .toggle {
-                Text(forQuick
-                    ? "Tap the shortcut once to start and again to finish."
-                    : "Press the shortcut once to start and again to finish.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if resolvedMode == .hold {
+                holdDelayControls(Binding(
+                    get: { model.quickNoteHoldDelayMilliseconds },
+                    set: { updateHotkeys(quickHoldDelayMilliseconds: $0) }
+                ))
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 12))
-        .onChange(of: binding.wrappedValue) { _, _ in
-            normalizeTriggerMode(forQuick: forQuick)
-        }
-        .onChange(of: triggerMode.wrappedValue) { _, newValue in
-            if forQuick {
-                updateHotkeys(quickTriggerMode: newValue)
-            } else {
-                updateHotkeys(longTriggerMode: newValue)
+        .onChange(of: model.hotkeyConfiguration.quick) { _, newBinding in
+            let modes = RecordingTriggerMode.quickAvailableModes(modifierOnly: newBinding.isModifierOnly)
+            if !modes.contains(model.quickNoteTriggerMode) {
+                updateHotkeys(quickTriggerMode: modes.first ?? .hold)
             }
         }
+    }
+
+    private var longExplanationShortcutCard: some View {
+        let detail = model.longNoteEnabled
+            ? RecordingTriggerMode.toggle.detail(
+                bindingLabel: model.hotkeyConfiguration.long.label,
+                holdDelayMilliseconds: QuickNoteHoldDelay.defaultMilliseconds
+            )
+            : RecordingTriggerMode.longDisabledDetail(
+                bindingLabel: model.hotkeyConfiguration.long.label
+            )
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Enable long explanation").fontWeight(.medium)
+                    Text("When off, pressing the shortcut will not start a long recording.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Toggle("Enable long explanation", isOn: Binding(
+                    get: { model.longNoteEnabled },
+                    set: { updateHotkeys(longNoteEnabled: $0) }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .accessibilityLabel("Enable long explanation")
+            }
+
+            if model.longNoteEnabled {
+                Divider()
+                HotkeyRecordingRow(
+                    title: "Long explanation",
+                    detail: detail,
+                    binding: Binding(
+                        get: { model.hotkeyConfiguration.long },
+                        set: { value in updateHotkeys(long: value) }
+                    )
+                )
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func holdDelayControls(_ holdDelayMilliseconds: Binding<Int>) -> some View {
@@ -563,23 +582,11 @@ struct SetupView: View {
         }
     }
 
-    private func normalizeTriggerMode(forQuick: Bool) {
-        let binding = forQuick ? model.hotkeyConfiguration.quick : model.hotkeyConfiguration.long
-        let modes = RecordingTriggerMode.availableModes(forQuick: forQuick, modifierOnly: binding.isModifierOnly)
-        if forQuick {
-            if !modes.contains(model.quickNoteTriggerMode) {
-                updateHotkeys(quickTriggerMode: modes.first ?? .hold)
-            }
-        } else if !modes.contains(model.longNoteTriggerMode) {
-            updateHotkeys(longTriggerMode: modes.first ?? .toggle)
-        }
-    }
-
     private func applyHotkeyConfiguration(_ configuration: HotkeyConfiguration) {
         model.hotkeyError = nil
         model.hotkeyConfiguration = configuration
         model.quickNoteTriggerMode = configuration.quickTriggerMode
-        model.longNoteTriggerMode = configuration.longTriggerMode
+        model.longNoteEnabled = configuration.longNoteEnabled
         model.quickNoteHoldDelayMilliseconds = configuration.quickHoldDelayMilliseconds
         model.setHotkeyConfiguration(configuration)
     }
@@ -588,14 +595,14 @@ struct SetupView: View {
         quick: HotkeyBinding? = nil,
         long: HotkeyBinding? = nil,
         quickTriggerMode: RecordingTriggerMode? = nil,
-        longTriggerMode: RecordingTriggerMode? = nil,
+        longNoteEnabled: Bool? = nil,
         quickHoldDelayMilliseconds: Int? = nil
     ) {
         var configuration = model.hotkeyConfiguration
         if let quick { configuration.quick = quick }
         if let long { configuration.long = long }
         if let quickTriggerMode { configuration.quickTriggerMode = quickTriggerMode }
-        if let longTriggerMode { configuration.longTriggerMode = longTriggerMode }
+        if let longNoteEnabled { configuration.longNoteEnabled = longNoteEnabled }
         if let quickHoldDelayMilliseconds {
             configuration.quickHoldDelayMilliseconds = QuickNoteHoldDelay.clamp(quickHoldDelayMilliseconds)
         }
@@ -909,41 +916,38 @@ private struct OnboardingView: View {
     }
 
     private var longNoteShortcutGuideDetail: String {
-        switch model.longNoteTriggerMode {
-        case .hold: return "Hold to record"
-        case .toggle: return "Press to toggle"
-        case .doubleTap: return "Double-tap to toggle"
-        }
+        model.longNoteEnabled ? "Press to toggle" : "Disabled"
     }
 
     private var quickNoteOnboardingDetail: String {
         let quick = model.hotkeyConfiguration.quick.label
         let long = model.hotkeyConfiguration.long.label
         let quickAction = quickNoteActionPhrase
-        let longAction = longNoteActionPhrase
-        return "\(quickAction) \(quick) for a quick note, or \(longAction) \(long) for a longer explanation."
+        if model.longNoteEnabled {
+            return "\(quickAction.capitalized) \(quick) for a quick note, or press \(long) for a longer explanation."
+        }
+        return "\(quickAction.capitalized) \(quick) for a quick note."
     }
 
     private var quickNoteFinishOnboardingDetail: String {
         let quick = quickNoteStopPhrase
         let long = longNoteStopPhrase
-        return "\(quick), or \(long). BetterVoice inserts the transcript and captured images together."
+        if model.longNoteEnabled {
+            return "\(quick), or \(long). BetterVoice inserts the transcript and captured images together."
+        }
+        return "\(quick). BetterVoice inserts the transcript and captured images together."
     }
 
     private var quickNoteActionPhrase: String {
         switch model.quickNoteTriggerMode {
-        case .hold: return "Hold"
-        case .toggle: return "Tap"
-        case .doubleTap: return "Double-tap"
+        case .hold: return "hold"
+        case .toggle: return "tap"
+        case .doubleTap: return "double-tap"
         }
     }
 
     private var longNoteActionPhrase: String {
-        switch model.longNoteTriggerMode {
-        case .hold: return "Hold"
-        case .toggle: return "Press"
-        case .doubleTap: return "Double-tap"
-        }
+        "press"
     }
 
     private var quickNoteStopPhrase: String {
@@ -955,11 +959,7 @@ private struct OnboardingView: View {
     }
 
     private var longNoteStopPhrase: String {
-        switch model.longNoteTriggerMode {
-        case .hold: return "release the long shortcut to finish"
-        case .toggle: return "press the long shortcut again to finish"
-        case .doubleTap: return "double-tap the long shortcut again to finish"
-        }
+        "press the long shortcut again to finish"
     }
 
     private var canContinue: Bool {
@@ -1118,14 +1118,27 @@ private struct ReadinessCard: View {
     }
 }
 
-private struct HotkeyRecordingRow: View {
+private struct HotkeyRecordingRow<Trailing: View>: View {
     let title: String
     let detail: String
     @Binding var binding: HotkeyBinding
+    @ViewBuilder var trailing: () -> Trailing
     @State private var isRecording = false
 
+    init(
+        title: String,
+        detail: String,
+        binding: Binding<HotkeyBinding>,
+        @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }
+    ) {
+        self.title = title
+        self.detail = detail
+        self._binding = binding
+        self.trailing = trailing
+    }
+
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(alignment: .center, spacing: 14) {
             Text(binding.label.isEmpty ? "⌁" : binding.label)
                 .font(.system(size: 21, weight: .medium, design: .rounded))
                 .frame(width: 48, height: 42)
@@ -1138,11 +1151,14 @@ private struct HotkeyRecordingRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            Button(isRecording ? "Listening…" : binding.label) {
-                isRecording = true
+            HStack(spacing: 10) {
+                Button(isRecording ? "Listening…" : binding.label) {
+                    isRecording = true
+                }
+                .controlSize(.small)
+                .accessibilityLabel(isRecording ? "Listening for \(title) shortcut" : "Change \(title) shortcut, currently \(binding.label)")
+                trailing()
             }
-            .controlSize(.small)
-            .accessibilityLabel(isRecording ? "Listening for \(title) shortcut" : "Change \(title) shortcut, currently \(binding.label)")
             HotkeyCaptureView(isRecording: $isRecording) { captured in
                 isRecording = false
                 binding = captured

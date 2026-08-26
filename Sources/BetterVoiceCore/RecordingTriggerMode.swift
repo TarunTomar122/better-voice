@@ -26,20 +26,26 @@ public enum RecordingTriggerMode: String, Sendable, CaseIterable {
         }
     }
 
-    /// Labels when configuring quick note shortcuts.
+    /// Short label for quick-note trigger picker.
     public var quickPickerLabel: String {
         switch self {
         case .hold: return "Hold"
-        case .toggle: return "Tap"
+        case .toggle: return "Shortcut"
         case .doubleTap: return "Double-tap"
         }
     }
 
-    public static func availableModes(forQuick: Bool, modifierOnly: Bool) -> [RecordingTriggerMode] {
-        if forQuick {
-            return modifierOnly ? [.hold, .toggle, .doubleTap] : [.hold, .toggle]
-        }
-        return modifierOnly ? [.toggle, .doubleTap] : [.toggle]
+    public static func quickAvailableModes(modifierOnly: Bool) -> [RecordingTriggerMode] {
+        modifierOnly ? [.hold, .doubleTap] : [.hold]
+    }
+
+    public static func quickHoldDetail(bindingLabel: String, holdDelayMilliseconds: Int) -> String {
+        let delay = QuickNoteHoldDelay.clamp(holdDelayMilliseconds)
+        return "Hold \(bindingLabel) for \(delay) ms to record. Release it to finish."
+    }
+
+    public static func longDisabledDetail(bindingLabel: String) -> String {
+        "Long explanation is off. Pressing \(bindingLabel) will not start a recording."
     }
 
     public func detail(bindingLabel: String, holdDelayMilliseconds: Int) -> String {
@@ -61,7 +67,7 @@ public typealias QuickNoteTriggerMode = RecordingTriggerMode
 public enum QuickNoteHoldDelay: Sendable {
     public static let defaultMilliseconds = 140
     public static let minimumMilliseconds = 50
-    public static let maximumMilliseconds = 500
+    public static let maximumMilliseconds = 1000
 
     public static func clamp(_ milliseconds: Int) -> Int {
         min(max(milliseconds, minimumMilliseconds), maximumMilliseconds)
