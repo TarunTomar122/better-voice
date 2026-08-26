@@ -1838,7 +1838,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         menu.addItem(statusMenuItem)
         menu.addItem(NSMenuItem.separator())
 
-        let recordingItem = NSMenuItem(title: "Start long recording (\(longShortcutLabel))", action: #selector(toggleRecording), keyEquivalent: "")
+        let recordingItem = NSMenuItem(title: longRecordingMenuTitle, action: #selector(toggleRecording), keyEquivalent: "")
         recordingItem.target = self
         recordingMenuItem = recordingItem
         menu.addItem(recordingItem)
@@ -2281,10 +2281,16 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         updateShortcutStatus()
     }
 
+    private var longRecordingMenuTitle: String {
+        hotkeyConfiguration.longNoteEnabled
+            ? "Start long recording (\(longShortcutLabel))"
+            : "Start long recording"
+    }
+
     private func updateShortcutStatus() {
         statusItem.button?.toolTip = "BetterVoice — \(readyStatusHint) • Microphone: \(microphones.selectedLabel)"
         statusMenuItem?.title = "Ready • \(readyStatusHint)"
-        recordingMenuItem?.title = "Start long recording (\(longShortcutLabel))"
+        recordingMenuItem?.title = longRecordingMenuTitle
     }
 
     /// Creates the template on demand too: a user who cleared the file still gets a
@@ -2703,7 +2709,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         refreshModelMenu()
         refreshLanguageMenu()
         setStatusIcon(.idle)
-        updateMenuTitle("Start long recording (\(longShortcutLabel))", enabled: true)
+        updateMenuTitle(longRecordingMenuTitle, enabled: true)
     }
 
     private func handleMouse(quartzPoint: CGPoint) {
@@ -2834,12 +2840,11 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
     }
 
     private func openPrivacySettings(_ pane: String) {
-        let modern = "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?\(pane)"
-        let legacy = "x-apple.systempreferences:com.apple.preference.security?\(pane)"
-        if let url = URL(string: modern), NSWorkspace.shared.open(url) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?\(pane)") {
+            NSWorkspace.shared.open(url)
             return
         }
-        if let url = URL(string: legacy) {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
             NSWorkspace.shared.open(url)
         }
     }

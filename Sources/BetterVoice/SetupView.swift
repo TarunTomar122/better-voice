@@ -481,12 +481,6 @@ struct SetupView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary.opacity(0.28), in: RoundedRectangle(cornerRadius: 12))
-        .onChange(of: model.hotkeyConfiguration.quick) { _, newBinding in
-            let modes = RecordingTriggerMode.quickAvailableModes(modifierOnly: newBinding.isModifierOnly)
-            if !modes.contains(model.quickNoteTriggerMode) {
-                updateHotkeys(quickTriggerMode: modes.first ?? .hold)
-            }
-        }
     }
 
     private var longExplanationShortcutCard: some View {
@@ -930,9 +924,9 @@ private struct OnboardingView: View {
         let long = model.hotkeyConfiguration.long.label
         let quickAction = quickNoteActionPhrase
         if model.longNoteEnabled {
-            return "\(quickAction.capitalized) \(quick) for a quick note, or press \(long) for a longer explanation."
+            return "\(sentenceCapitalized(quickAction)) \(quick) for a quick note, or press \(long) for a longer explanation."
         }
-        return "\(quickAction.capitalized) \(quick) for a quick note."
+        return "\(sentenceCapitalized(quickAction)) \(quick) for a quick note."
     }
 
     private var quickNoteFinishOnboardingDetail: String {
@@ -942,6 +936,11 @@ private struct OnboardingView: View {
             return "\(quick), or \(long). BetterVoice inserts the transcript and captured images together."
         }
         return "\(quick). BetterVoice inserts the transcript and captured images together."
+    }
+
+    private func sentenceCapitalized(_ string: String) -> String {
+        guard let first = string.first else { return string }
+        return String(first).uppercased() + string.dropFirst()
     }
 
     private var quickNoteActionPhrase: String {

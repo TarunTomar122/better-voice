@@ -27,21 +27,17 @@ public enum RecordingTriggerMode: String, Sendable, CaseIterable {
     }
 
     /// Short label for quick-note trigger picker.
-    public var quickPickerLabel: String {
-        switch self {
-        case .hold: return "Hold"
-        case .toggle: return "Shortcut"
-        case .doubleTap: return "Double-tap"
-        }
-    }
+    public var quickPickerLabel: String { pickerLabel }
 
     public static func quickAvailableModes(modifierOnly: Bool) -> [RecordingTriggerMode] {
         modifierOnly ? [.hold, .doubleTap] : [.hold]
     }
 
     public static func quickHoldDetail(bindingLabel: String, holdDelayMilliseconds: Int) -> String {
-        let delay = QuickNoteHoldDelay.clamp(holdDelayMilliseconds)
-        return "Hold \(bindingLabel) for \(delay) ms to record. Release it to finish."
+        RecordingTriggerMode.hold.detail(
+            bindingLabel: bindingLabel,
+            holdDelayMilliseconds: holdDelayMilliseconds
+        )
     }
 
     public static func longDisabledDetail(bindingLabel: String) -> String {

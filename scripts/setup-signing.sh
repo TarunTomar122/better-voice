@@ -10,9 +10,9 @@ print "3. Select your account → Manage Certificates… → + → Apple Develop
 print "4. Re-run: ./scripts/install-local.sh"
 print ""
 
-if security find-identity -v -p codesigning 2>/dev/null | rg -q "Apple Development:"; then
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "Apple Development:"; then
   print "Apple Development identity is already installed:"
-  security find-identity -v -p codesigning | rg "Apple Development:"
+  security find-identity -v -p codesigning | grep "Apple Development:"
   exit 0
 fi
 

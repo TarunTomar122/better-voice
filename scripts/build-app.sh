@@ -21,9 +21,9 @@ cp "Info.plist" "$app_dir/Contents/Info.plist"
 mkdir -p "$app_dir/Contents/Resources"
 cp "Resources/BetterVoice.icns" "$app_dir/Contents/Resources/BetterVoice.icns"
 signing_identity=${BETTERVOICE_SIGNING_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '
-  /Apple Development:|Developer ID Application:/ { print $2; exit }
+  /Apple Development:|Developer ID Application:/ { print $2; preferred=1; exit }
   /BetterVoice Developer/ { dev=$2 }
-  END { if (dev != "") print dev }
+  END { if (!preferred && dev != "") print dev }
 ')}
 if [[ -z "$signing_identity" ]]; then
   signing_identity=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/BetterVoice Local Code Sign/ { print $2; exit }')

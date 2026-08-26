@@ -14,9 +14,9 @@ fi
 
 # Prefer Apple Development; fall back to trusted local BetterVoice Developer cert
 signing_identity=${BETTERVOICE_SIGNING_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '
-  /Apple Development:|Developer ID Application:/ { print $2; exit }
+  /Apple Development:|Developer ID Application:/ { print $2; preferred=1; exit }
   /BetterVoice Developer/ { dev=$2 }
-  END { if (dev != "") print dev }
+  END { if (!preferred && dev != "") print dev }
 ')}
 if [[ -z "$signing_identity" ]]; then
   signing_identity=$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/BetterVoice Local Code Sign/ { print $2; exit }')
@@ -37,7 +37,7 @@ rm -rf /Applications/BetterVoice.app
 ditto .build/BetterVoice.app /Applications/BetterVoice.app
 xattr -cr /Applications/BetterVoice.app
 codesign --verify --deep --strict /Applications/BetterVoice.app
-codesign -dv /Applications/BetterVoice.app 2>&1 | rg "Authority|TeamIdentifier|Signature"
+codesign -dv /Applications/BetterVoice.app 2>&1 | grep -E 'Authority|TeamIdentifier|Signature'
 
 print -u2 "Launching BetterVoice from /Applications…"
 open -n /Applications/BetterVoice.app
