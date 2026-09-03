@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using BetterVoice.Core;
 using Xunit;
 
@@ -80,6 +81,42 @@ public class VocabularyFileTests
     }
 
     [Fact]
+    public void TestMalformedJsonYieldsNoTermsRatherThanThrowing()
+    {
+        string path = TempFile();
+        try
+        {
+            File.WriteAllText(path, "{ not json at all");
+            Assert.Empty(VocabularyFile.Terms(path));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void TestAMissingFileYieldsNoTerms()
+    {
+        Assert.Empty(VocabularyFile.Terms(TempFile()));
+    }
+
+    [Fact]
+    public void TestWrongValueTypesYieldNoTerms()
+    {
+        string path = TempFile();
+        try
+        {
+            File.WriteAllText(path, """{"terms": {"engine x": 7}}""");
+            Assert.Empty(VocabularyFile.Terms(path));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void TestWritesATemplateOnlyWhenTheFileIsAbsent()
     {
         string path = TempFile();
@@ -91,6 +128,25 @@ public class VocabularyFileTests
 
             var terms = VocabularyFile.Terms(path).Select(x => x.Key).ToList();
             Assert.Equal(["mine"], terms);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void TestTheTemplateIsValidAndStartsWithNoTerms()
+    {
+        string path = TempFile();
+        try
+        {
+            VocabularyFile.CreateTemplateIfMissing(path);
+
+            string json = File.ReadAllText(path);
+            using var doc = JsonDocument.Parse(json);
+            Assert.True(doc.RootElement.TryGetProperty("_readme", out _), "The template must explain itself");
+            Assert.Empty(VocabularyFile.Terms(path));
         }
         finally
         {

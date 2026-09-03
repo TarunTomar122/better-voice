@@ -110,6 +110,18 @@ public class CircleGestureDetectorTests
     }
 
     [Fact]
+    public void TestCompleteCommandOptionChordCanToggleOnAndOff()
+    {
+        var shortcut = new RecordingShortcutState();
+
+        Assert.Empty(shortcut.FlagsChanged(command: true, option: false));
+        Assert.Equal([RecordingShortcutAction.ToggleLongForm], shortcut.FlagsChanged(command: true, option: true));
+        Assert.Empty(shortcut.FlagsChanged(command: true, option: true));
+        Assert.Empty(shortcut.FlagsChanged(command: false, option: false));
+        Assert.Equal([RecordingShortcutAction.ToggleLongForm], shortcut.FlagsChanged(command: true, option: true));
+    }
+
+    [Fact]
     public void TestTrailSegmentsSkipPausesAndPointerJumps()
     {
         Assert.Empty(TrailSegments.Calculate([], []));
@@ -166,6 +178,34 @@ public class CircleGestureDetectorTests
     }
 
     [Fact]
+    public void TestRecognizesSlowLooseLoopAfterPointerMovement()
+    {
+        var detector = new CircleGestureDetector();
+        CircleGesture? result = null;
+
+        for (int index = 0; index < 60; index++)
+        {
+            _ = detector.Add(
+                new PointD(300 + index * 5, 240 + (index % 7)),
+                index * 0.02);
+        }
+
+        var center = new PointD(900, 500);
+        for (int index = 0; index < 150; index++)
+        {
+            double angle = (double)index / 149.0 * 2.0 * Math.PI;
+            double wobble = 1.0 + 0.1 * Math.Sin(angle * 3);
+            result = detector.Add(
+                new PointD(
+                    center.X + 110 * wobble * Math.Cos(angle),
+                    center.Y + 82 * wobble * Math.Sin(angle)),
+                1.2 + index * 0.02) ?? result;
+        }
+
+        Assert.NotNull(result);
+    }
+
+    [Fact]
     public void TestRejectsStraightLine()
     {
         var detector = new CircleGestureDetector();
@@ -191,6 +231,64 @@ public class CircleGestureDetectorTests
             double radius = 70 * (1 + 0.55 * Math.Sin(angle * 2));
             result = detector.Add(
                 new PointD(400 + radius * Math.Cos(angle), 300 + radius * Math.Sin(angle)),
+                (double)index / 60.0) ?? result;
+        }
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TestRejectsPartialArc()
+    {
+        var detector = new CircleGestureDetector();
+        CircleGesture? result = null;
+
+        for (int index = 0; index < 48; index++)
+        {
+            double angle = (double)index / 47.0 * (4.0 * Math.PI / 3.0);
+            result = detector.Add(
+                new PointD(600 + 60 * Math.Cos(angle), 400 + 60 * Math.Sin(angle)),
+                (double)index / 60.0) ?? result;
+        }
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TestRejectsHook()
+    {
+        var detector = new CircleGestureDetector();
+        CircleGesture? result = null;
+        var points = new List<PointD>();
+
+        for (int index = 0; index < 48; index++)
+        {
+            double progress = (double)index / 47.0;
+            points.Add(new PointD(
+                600 + 100 * progress,
+                400 + 60 * Math.Sin(progress * Math.PI) + 18 * progress));
+        }
+
+        for (int index = 0; index < points.Count; index++)
+        {
+            result = detector.Add(points[index], (double)index / 60.0) ?? result;
+        }
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TestRejectsZigzag()
+    {
+        var detector = new CircleGestureDetector();
+        CircleGesture? result = null;
+
+        for (int index = 0; index < 60; index++)
+        {
+            result = detector.Add(
+                new PointD(
+                    500 + index * 2,
+                    400 + (index % 2 == 0 ? 35 : -35)),
                 (double)index / 60.0) ?? result;
         }
 
