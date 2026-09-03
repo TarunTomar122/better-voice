@@ -4,3 +4,11 @@ dist/
 DerivedData/
 .DS_Store
 xcuserdata/
+
+# .NET / Windows build artifacts
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
