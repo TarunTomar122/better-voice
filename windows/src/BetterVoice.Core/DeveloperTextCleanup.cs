@@ -12,6 +12,7 @@ public static class DeveloperTextCleanup
 {
     private static readonly (string Source, string Replacement)[] Terms =
     [
+        ("better voice", "BetterVoice"),
         ("javascript", "JavaScript"), ("typescript", "TypeScript"), ("swiftui", "SwiftUI"),
         ("nextjs", "Next.js"), ("next.js", "Next.js"), ("postgresql", "PostgreSQL"),
         ("postgres", "Postgres"), ("mongodb", "MongoDB"), ("supabase", "Supabase"),

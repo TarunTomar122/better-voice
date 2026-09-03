@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BetterVoice.Core.Tests", "t
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BetterVoice.App", "src\BetterVoice.App\BetterVoice.App.csproj", "{323381B5-AC55-4760-8683-36F7E7F1FA2A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BetterVoice.Integration.Tests", "tests\BetterVoice.Integration.Tests\BetterVoice.Integration.Tests.csproj", "{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -59,6 +61,18 @@ Global
 		{323381B5-AC55-4760-8683-36F7E7F1FA2A}.Release|x64.Build.0 = Release|Any CPU
 		{323381B5-AC55-4760-8683-36F7E7F1FA2A}.Release|x86.ActiveCfg = Release|Any CPU
 		{323381B5-AC55-4760-8683-36F7E7F1FA2A}.Release|x86.Build.0 = Release|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Debug|x64.Build.0 = Debug|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Debug|x86.Build.0 = Debug|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Release|x64.ActiveCfg = Release|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Release|x64.Build.0 = Release|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Release|x86.ActiveCfg = Release|Any CPU
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -67,5 +81,6 @@ Global
 		{4746E256-FD22-4B1C-BF13-00C9A1254BC4} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{37D90FB8-9202-47D4-BAB6-1DE27F6BF15A} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{323381B5-AC55-4760-8683-36F7E7F1FA2A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{F677A2DB-EE6C-4345-96BB-8E245A38E7A1} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

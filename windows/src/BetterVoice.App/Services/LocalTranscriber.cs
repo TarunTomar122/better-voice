@@ -1,47 +1,57 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using BetterVoice.Core;
+using Whisper.net;
 
 namespace BetterVoice.App.Services;
 
-public sealed class LocalTranscriber
+public sealed class LocalTranscriber : IDisposable
 {
     private readonly SettingsManager _settingsManager;
     private readonly GrammarCorrector _grammarCorrector = new();
+    private WhisperFactory? _factory;
+    private string? _loadedModelPath;
 
     public LocalTranscriber(SettingsManager settingsManager)
     {
         _settingsManager = settingsManager;
     }
 
+    private WhisperFactory GetOrCreateFactory(string modelPath)
+    {
+        if (_factory != null && _loadedModelPath == modelPath)
+        {
+            return _factory;
+        }
+
+        _factory?.Dispose();
+        _factory = WhisperFactory.FromPath(modelPath);
+        _loadedModelPath = modelPath;
+        return _factory;
+    }
+
     public async Task<string> TranscribeAsync(string audioWavPath, DeveloperAppProfile profile)
     {
-        if (!File.Exists(audioWavPath))
+        if (!File.Exists(audioWavPath)) return string.Empty;
+        var info = new FileInfo(audioWavPath);
+        if (info.Length < 2048) return string.Empty;
+
+        string modelPath = GetModelPath();
+        if (!File.Exists(modelPath))
         {
             return string.Empty;
         }
 
-        var fileInfo = new FileInfo(audioWavPath);
-        // If file is smaller than 2KB, it is practically empty
-        if (fileInfo.Length < 2048)
+        string raw = await RunWhisperAsync(audioWavPath, modelPath);
+        if (string.IsNullOrWhiteSpace(raw))
         {
             return string.Empty;
         }
 
-        // Local Speech Recognition Pipeline
-        // In local mock / fallback mode when offline, returns recognized utterance.
-        // When connected with Sherpa-ONNX / Whisper backend, feeds 16kHz WAV into model.
-        string rawTranscript = await RunSpeechToTextAsync(audioWavPath);
+        string result = raw.Trim();
 
-        if (string.IsNullOrWhiteSpace(rawTranscript))
-        {
-            return string.Empty;
-        }
-
-        string result = rawTranscript;
-
-        // Apply Developer Vocabulary and Mis-casing rules
         if (_settingsManager.Current.DeveloperCleanupEnabled)
         {
             string vocabPath = VocabularyFile.DefaultPath();
@@ -49,7 +59,6 @@ public sealed class LocalTranscriber
             result = DeveloperTextCleanup.Apply(result, profile, overrides);
         }
 
-        // Apply Optional Grammar Correction for English
         var lang = TranscriptionLanguage.FromStoredCode(_settingsManager.Current.TranscriptionLanguageCode);
         if (_settingsManager.Current.GrammarCorrectionEnabled && lang.AllowsGrammarCorrection)
         {
@@ -59,10 +68,48 @@ public sealed class LocalTranscriber
         return result;
     }
 
-    private Task<string> RunSpeechToTextAsync(string audioWavPath)
+    private async Task<string> RunWhisperAsync(string wavPath, string modelPath)
     {
-        // Ready for Whisper / Sherpa-ONNX endpoint
-        // Checks if an external transcriber is configured or fallback
-        return Task.FromResult("Hello BetterVoice on Windows");
+        try
+        {
+            var factory = GetOrCreateFactory(modelPath);
+            var lang = TranscriptionLanguage.FromStoredCode(_settingsManager.Current.TranscriptionLanguageCode);
+            string whisperLang = lang.UsesEnglishOnlyModel ? "en" : (lang.Code == TranscriptionLanguage.AutomaticCode ? "auto" : lang.Code);
+
+            using var processor = factory.CreateBuilder()
+                .WithLanguage(whisperLang)
+                .Build();
+
+            await using var fileStream = File.OpenRead(wavPath);
+            var sb = new StringBuilder();
+
+            await foreach (var segment in processor.ProcessAsync(fileStream))
+            {
+                if (!string.IsNullOrWhiteSpace(segment.Text))
+                {
+                    sb.Append(segment.Text).Append(' ');
+                }
+            }
+
+            return sb.ToString().Trim();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Whisper transcription error: {ex}");
+            return string.Empty;
+        }
+    }
+
+    public static string GetModelPath()
+    {
+        return Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "BetterVoice", "Models", "ggml-tiny.en.bin");
+    }
+
+    public void Dispose()
+    {
+        _factory?.Dispose();
+        _grammarCorrector.Dispose();
     }
 }
