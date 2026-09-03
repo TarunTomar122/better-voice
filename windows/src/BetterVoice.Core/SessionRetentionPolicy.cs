@@ -10,7 +10,7 @@ public readonly record struct StoredSession(string Name, DateTime ModifiedAt, lo
 public static class SessionNaming
 {
     private static readonly Regex SessionNameRegex = new(
-        @"^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z-[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$",
+        @"^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z-[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}\z",
         RegexOptions.Compiled);
 
     public static bool IsBetterVoiceSessionName(string name) => SessionNameRegex.IsMatch(name);
@@ -36,7 +36,15 @@ public sealed class SessionRetentionPolicy
             sessions.Where(s => now - s.ModifiedAt > MaxAge).Select(s => s.Name));
 
         var kept = sessions.Where(s => !removed.Contains(s.Name)).ToList();
-        long totalBytes = kept.Sum(s => s.Bytes);
+
+        long totalBytes = 0;
+        foreach (var s in kept)
+        {
+            if (s.Bytes > 0)
+            {
+                totalBytes = totalBytes > long.MaxValue - s.Bytes ? long.MaxValue : totalBytes + s.Bytes;
+            }
+        }
 
         foreach (var session in kept.OrderBy(s => s.ModifiedAt))
         {

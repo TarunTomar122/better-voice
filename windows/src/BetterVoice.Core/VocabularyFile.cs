@@ -40,6 +40,10 @@ public static class VocabularyFile
             var list = new List<(string Key, string Value)>();
             foreach (var prop in termsElem.EnumerateObject())
             {
+                if (prop.Value.ValueKind != JsonValueKind.String)
+                {
+                    continue;
+                }
                 string key = prop.Name;
                 string val = prop.Value.GetString() ?? string.Empty;
                 if (!string.IsNullOrEmpty(key) && !string.IsNullOrEmpty(val))

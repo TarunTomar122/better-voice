@@ -7,10 +7,9 @@ public readonly record struct TrailSegment(int From, int To);
 
 public static class TrailSegments
 {
-    private static double Hypot(double x, double y) => Math.Sqrt(x * x + y * y);
-
     /// <summary>
     /// Links only nearby samples so pauses and pointer jumps leave separate tail strokes.
+    /// Highly optimized with squared distance checks (avoiding square root).
     /// </summary>
     public static List<TrailSegment> Calculate(
         IReadOnlyList<PointD> points,
@@ -18,20 +17,25 @@ public static class TrailSegments
         double maximumGap = 0.18,
         double maximumDistance = 160.0)
     {
-        if (points.Count != times.Count || points.Count <= 1)
+        int count = points.Count;
+        if (count != times.Count || count <= 1)
         {
             return [];
         }
 
-        var segments = new List<TrailSegment>();
-        for (int index = 1; index < points.Count; index++)
+        double maxDistSq = maximumDistance * maximumDistance;
+        var segments = new List<TrailSegment>(count);
+
+        for (int index = 1; index < count; index++)
         {
             double gap = times[index] - times[index - 1];
-            double distance = Hypot(
-                points[index].X - points[index - 1].X,
-                points[index].Y - points[index - 1].Y);
+            if (gap < 0 || gap > maximumGap) continue;
 
-            if (gap >= 0 && gap <= maximumGap && distance <= maximumDistance)
+            double dx = points[index].X - points[index - 1].X;
+            double dy = points[index].Y - points[index - 1].Y;
+            double distSq = dx * dx + dy * dy;
+
+            if (distSq <= maxDistSq)
             {
                 segments.Add(new TrailSegment(index - 1, index));
             }
