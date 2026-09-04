@@ -2,6 +2,12 @@
 
 Native Windows port of **BetterVoice**, bringing offline speech recognition, developer vocabulary cleanup, circular pointer gestures with screenshot context, and seamless active-field text insertion to Windows 10 and 11.
 
+The English Whisper model downloads on the first transcription. Selecting another language downloads the multilingual model on first use. Grammar correction is optional and downloads its pinned ONNX model and tokenizer the first time it is enabled.
+
+For screen-recorded product demos, launch with `BETTERVOICE_CAPTURE_HUD=1` to
+include the recording HUD. Normal launches exclude it from capture so it cannot
+appear in saved context screenshots.
+
 ## Architecture & Subsystems
 
 | Subsystem | Windows Implementation | Role |
@@ -24,7 +30,7 @@ Native Windows port of **BetterVoice**, bringing offline speech recognition, dev
 ```powershell
 dotnet test windows/BetterVoice.sln
 ```
-*Executes all 63 unit tests verifying 100% algorithmic parity with macOS Swift test suite.*
+*Executes the core, integration, hardware, and performance test suites.*
 
 ### Build Release Application
 ```powershell
