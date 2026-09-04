@@ -181,7 +181,7 @@ public class PerformanceBenchmarks
         // 16kHz 16-bit mono = 32,000 bytes/sec
         double audioDurationSeconds = (fileInfo.Length - 44) / 32000.0;
 
-        var settingsManager = new SettingsManager();
+        var settingsManager = new SettingsManager(TestPaths.SettingsFile());
         using var transcriber = new LocalTranscriber(settingsManager);
 
         // Warmup inference

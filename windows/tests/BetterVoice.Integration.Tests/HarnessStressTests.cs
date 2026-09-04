@@ -531,7 +531,7 @@ public class HarnessStressTests
             {
                 for (int iter = 0; iter < 50; iter++)
                 {
-                    var manager = new SettingsManager();
+                    var manager = new SettingsManager(TestPaths.SettingsFile());
                     Assert.NotNull(manager.Current);
                 }
             }
@@ -1257,7 +1257,7 @@ public class HarnessStressTests
     [Fact]
     public void Flaw_SettingsManager_AddRecentTranscript_ThreadSafe()
     {
-        var settings = new SettingsManager();
+        var settings = new SettingsManager(TestPaths.SettingsFile());
         var exceptions = new ConcurrentBag<Exception>();
 
         Parallel.For(0, 30, i =>
