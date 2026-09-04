@@ -40,7 +40,8 @@ public sealed class InputMonitor : IDisposable
     private RecordingShortcutState _shortcutState = new();
     private ModifierDoubleTapDetector _quickDoubleTapDetector = new();
     private ModifierToggleTapDetector _quickToggleTapDetector = new();
-    private ModifierChordEngagement _quickChordEngagement = new();
+    private ModifierChordEngagement _longChordEngagement = new();
+    private bool _longChordWasPressed;
 
     private bool _altDown;
     private bool _winDown;
@@ -92,6 +93,9 @@ public sealed class InputMonitor : IDisposable
         _lastMousePoint = null;
         _gestureDetector.Reset();
     }
+
+    public void SetCircleSensitivity(double minimumAngleDegrees) =>
+        _gestureDetector.SetMinimumAngleDegrees(minimumAngleDegrees);
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
@@ -170,18 +174,40 @@ public sealed class InputMonitor : IDisposable
                 ActionTriggered?.Invoke(action);
             }
         }
-        else if (QuickTriggerMode == RecordingTriggerMode.DoubleTap)
+        else
         {
-            if (_quickDoubleTapDetector.ModifierChanged(quickActive, ev.Timestamp))
+            var binding = new ModifierBindingState(
+                bindingCommand: true,
+                bindingOption: true,
+                bindingControl: false,
+                bindingShift: false,
+                command: _winDown,
+                option: _altDown,
+                control: _ctrlDown,
+                shift: _shiftDown);
+            bool longChordPressed = _longChordEngagement.IsPressed(binding);
+
+            if (longActive && !_longChordWasPressed)
             {
                 ActionTriggered?.Invoke(RecordingShortcutAction.ToggleLongForm);
+                _quickDoubleTapDetector.Reset();
+                _quickToggleTapDetector.Reset();
             }
-        }
-        else if (QuickTriggerMode == RecordingTriggerMode.Toggle)
-        {
-            if (_quickToggleTapDetector.ModifierChanged(quickActive, ev.Timestamp))
+            _longChordWasPressed = longChordPressed;
+
+            if (!longChordPressed && QuickTriggerMode == RecordingTriggerMode.DoubleTap)
             {
-                ActionTriggered?.Invoke(RecordingShortcutAction.ToggleLongForm);
+                if (_quickDoubleTapDetector.ModifierChanged(quickActive, ev.Timestamp))
+                {
+                    ActionTriggered?.Invoke(RecordingShortcutAction.ToggleLongForm);
+                }
+            }
+            else if (!longChordPressed && QuickTriggerMode == RecordingTriggerMode.Toggle)
+            {
+                if (_quickToggleTapDetector.ModifierChanged(quickActive, ev.Timestamp))
+                {
+                    ActionTriggered?.Invoke(RecordingShortcutAction.ToggleLongForm);
+                }
             }
         }
     }

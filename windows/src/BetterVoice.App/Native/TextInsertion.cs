@@ -39,8 +39,17 @@ public static class TextInsertion
     {
         if (string.IsNullOrEmpty(text)) return;
 
-        // If short single-line text without newlines, send directly via Unicode keystrokes!
-        if (text.Length <= 80 && !text.Contains('\n') && !text.Contains('\r'))
+        // Transcription can take long enough for another window to briefly receive
+        // focus. Restore the window that was active when recording stopped.
+        if (context.HWnd != IntPtr.Zero && Win32Api.IsWindow(context.HWnd))
+        {
+            Win32Api.SetForegroundWindow(context.HWnd);
+            await Task.Delay(50);
+        }
+
+        // Small inserts are safe as direct Unicode input. Larger batches can overrun
+        // some editors' input queues, so use the reliable clipboard path below.
+        if (text.Length <= 32 && !text.Contains('\n') && !text.Contains('\r'))
         {
             SendUnicodeString(text);
             return;
@@ -78,7 +87,7 @@ public static class TextInsertion
         SendCtrlV();
 
         // Allow target app to read from clipboard asynchronously before restoring
-        await Task.Delay(180);
+        await Task.Delay(300);
 
         if (hadText && previousText != null)
         {

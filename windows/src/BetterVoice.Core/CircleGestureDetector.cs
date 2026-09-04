@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace BetterVoice.Core;
 
@@ -34,11 +35,18 @@ public sealed class CircleGestureDetector
     private CircleGesture? _waitingForExit = null;
     private const double Window = 6.0;
 
-    public double MinimumAngleDegrees { get; }
+    private double _minimumAngleDegrees;
+
+    public double MinimumAngleDegrees => Volatile.Read(ref _minimumAngleDegrees);
 
     public CircleGestureDetector(double minimumAngleDegrees = 340)
     {
-        MinimumAngleDegrees = Math.Min(Math.Max(minimumAngleDegrees, 300), 359);
+        SetMinimumAngleDegrees(minimumAngleDegrees);
+    }
+
+    public void SetMinimumAngleDegrees(double minimumAngleDegrees)
+    {
+        Volatile.Write(ref _minimumAngleDegrees, Math.Clamp(minimumAngleDegrees, 300, 359));
     }
 
     public void Reset()

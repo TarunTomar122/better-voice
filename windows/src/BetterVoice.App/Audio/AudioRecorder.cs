@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 
@@ -8,8 +9,9 @@ namespace BetterVoice.App.Audio;
 
 public sealed class AudioRecorder : IDisposable
 {
-    private WasapiCapture? _capture;
+    private WasapiRecorder? _capture;
     private WaveFileWriter? _writer;
+    private TaskCompletionSource _stopCompletion = CompletedStop();
     private string? _currentFilePath;
     private bool _isRecording;
 
@@ -24,146 +26,148 @@ public sealed class AudioRecorder : IDisposable
         var devices = new List<(string Id, string Name)>();
         try
         {
-            var enumerator = new MMDeviceEnumerator();
+            using var enumerator = new MMDeviceEnumerator();
             var endpoints = enumerator.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active);
-            foreach (var ep in endpoints)
+            foreach (var endpoint in endpoints)
             {
-                devices.Add((ep.ID, ep.FriendlyName));
+                devices.Add((endpoint.ID, endpoint.FriendlyName));
             }
         }
         catch
         {
-            // fallback
+            // An empty list lets the UI retain the system-default fallback.
         }
         return devices;
     }
 
     public void Start(string outputWavPath, string? deviceId = null)
     {
-        Stop();
+        if (_isRecording) StopAsync().GetAwaiter().GetResult();
+
+        _capture?.Dispose();
+        _writer?.Dispose();
+        _capture = null;
+        _writer = null;
 
         _currentFilePath = outputWavPath;
         string? dir = Path.GetDirectoryName(outputWavPath);
-        if (!string.IsNullOrEmpty(dir))
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+        using var enumerator = new MMDeviceEnumerator();
+        MMDevice? selectedDevice = null;
+        try
         {
-            Directory.CreateDirectory(dir);
+            selectedDevice = string.IsNullOrEmpty(deviceId)
+                ? enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console)
+                : enumerator.GetDevice(deviceId);
+        }
+        catch when (!string.IsNullOrEmpty(deviceId))
+        {
+            selectedDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
         }
 
-        MMDevice? device = null;
-        var enumerator = new MMDeviceEnumerator();
-        if (!string.IsNullOrEmpty(deviceId))
-        {
-            try
-            {
-                device = enumerator.GetDevice(deviceId);
-            }
-            catch
-            {
-                device = null;
-            }
-        }
+        var targetFormat = new WaveFormat(16_000, 16, 1);
+        var builder = new WasapiRecorderBuilder()
+            .WithSharedMode()
+            .WithEventSync()
+            .WithFormat(targetFormat)
+            .WithMmcssThreadPriority("Capture");
+        if (selectedDevice != null) builder.WithDevice(selectedDevice);
+        _capture = builder.Build();
+        selectedDevice?.Dispose();
 
-        device ??= enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Console);
-        _capture = new WasapiCapture(device);
-
-        // 16kHz, 16-bit, Mono PCM format is ideal for local speech recognition
-        var targetFormat = new WaveFormat(16000, 16, 1);
         _writer = new WaveFileWriter(outputWavPath, targetFormat);
+        _stopCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _capture.DataAvailable += OnDataAvailable;
+        _capture.RecordingStopped += OnRecordingStopped;
+        _isRecording = true;
 
-        _capture.DataAvailable += (s, e) =>
+        try
         {
-            if (_writer == null || e.BytesRecorded == 0) return;
+            _capture.StartRecording();
+        }
+        catch
+        {
+            _isRecording = false;
+            _writer.Dispose();
+            _writer = null;
+            _stopCompletion.TrySetResult();
+            throw;
+        }
+    }
 
-            // Compute audio peak and RMS level
-            float maxSample = 0;
+    public async Task StopAsync()
+    {
+        if (!_isRecording || _capture == null) return;
+
+        _capture.StopRecording();
+        await _stopCompletion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    private void OnDataAvailable(ReadOnlySpan<byte> data, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)
+    {
+        if (_writer == null || data.IsEmpty) return;
+
+        try
+        {
+            _writer.Write(data);
+
+            float peak = 0;
             double sumSquares = 0;
-            int sampleCount = 0;
-
-            var waveFormat = _capture.WaveFormat;
-            if (waveFormat.Encoding == WaveFormatEncoding.IeeeFloat)
+            int sampleCount = data.Length / sizeof(short);
+            for (int offset = 0; offset + 1 < data.Length; offset += sizeof(short))
             {
-                for (int i = 0; i < e.BytesRecorded; i += 4)
-                {
-                    float sample = BitConverter.ToSingle(e.Buffer, i);
-                    float abs = Math.Abs(sample);
-                    if (abs > maxSample) maxSample = abs;
-                    sumSquares += sample * sample;
-                    sampleCount++;
-                }
-
-                // Resample to 16kHz 16-bit mono
-                byte[] pcm16 = ConvertFloatToPcm16(e.Buffer, e.BytesRecorded, waveFormat.Channels);
-                _writer.Write(pcm16, 0, pcm16.Length);
+                short sample = (short)(data[offset] | data[offset + 1] << 8);
+                float normalized = Math.Abs(sample / 32768f);
+                if (normalized > peak) peak = normalized;
+                sumSquares += normalized * normalized;
             }
-            else if (waveFormat.BitsPerSample == 16)
-            {
-                for (int i = 0; i < e.BytesRecorded; i += 2)
-                {
-                    short sample = BitConverter.ToInt16(e.Buffer, i);
-                    float normalized = Math.Abs(sample / 32768.0f);
-                    if (normalized > maxSample) maxSample = normalized;
-                    sumSquares += normalized * normalized;
-                    sampleCount++;
-                }
-
-                // Direct write
-                _writer.Write(e.Buffer, 0, e.BytesRecorded);
-            }
-
             float rms = sampleCount > 0 ? (float)Math.Sqrt(sumSquares / sampleCount) : 0;
-            float combined = Math.Min(1.0f, (maxSample * 0.6f) + (rms * 0.4f) * 2.5f);
-            LevelChanged?.Invoke(combined);
-        };
+            LevelChanged?.Invoke(Math.Min(1f, peak * 0.6f + rms));
+        }
+        catch
+        {
+            // Preserve an empty/partial recording rather than crashing the app.
+            _capture?.StopRecording();
+        }
+    }
 
-        _capture.RecordingStopped += (s, e) =>
+    private void OnRecordingStopped(object? sender, StoppedEventArgs e)
+    {
+        try
         {
             _writer?.Dispose();
             _writer = null;
             _isRecording = false;
             RecordingFinished?.Invoke();
-        };
 
-        _isRecording = true;
-        _capture.StartRecording();
-    }
-
-    public void Stop()
-    {
-        if (_isRecording && _capture != null)
-        {
-            _capture.StopRecording();
+            if (e.Exception != null) _stopCompletion.TrySetException(e.Exception);
+            else _stopCompletion.TrySetResult();
         }
-    }
-
-    private static byte[] ConvertFloatToPcm16(byte[] floatBuffer, int byteCount, int channels)
-    {
-        int floatCount = byteCount / 4;
-        int monoCount = floatCount / channels;
-        var pcm16 = new byte[monoCount * 2];
-
-        int outIndex = 0;
-        for (int i = 0; i < floatCount; i += channels)
+        catch (Exception ex)
         {
-            // Average channels to mono
-            float sum = 0;
-            for (int ch = 0; ch < channels; ch++)
-            {
-                sum += BitConverter.ToSingle(floatBuffer, (i + ch) * 4);
-            }
-            float avg = sum / channels;
-            short val = (short)Math.Clamp((int)(avg * 32767.0f), short.MinValue, short.MaxValue);
-
-            pcm16[outIndex++] = (byte)(val & 0xFF);
-            pcm16[outIndex++] = (byte)((val >> 8) & 0xFF);
+            _stopCompletion.TrySetException(ex);
         }
-
-        return pcm16;
     }
 
     public void Dispose()
     {
-        Stop();
+        try
+        {
+            StopAsync().GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // Disposal must not turn device shutdown into an app crash.
+        }
         _capture?.Dispose();
         _writer?.Dispose();
+    }
+
+    private static TaskCompletionSource CompletedStop()
+    {
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        completion.SetResult();
+        return completion;
     }
 }

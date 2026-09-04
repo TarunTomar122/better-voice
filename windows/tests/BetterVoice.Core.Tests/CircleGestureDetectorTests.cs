@@ -29,9 +29,15 @@ public class CircleGestureDetectorTests
     [Fact]
     public void TestCircleThresholdDefaultsTo340DegreesAndClampsUserValues()
     {
-        Assert.Equal(340, new CircleGestureDetector().MinimumAngleDegrees);
+        var detector = new CircleGestureDetector();
+        Assert.Equal(340, detector.MinimumAngleDegrees);
         Assert.Equal(300, new CircleGestureDetector(290).MinimumAngleDegrees);
         Assert.Equal(359, new CircleGestureDetector(370).MinimumAngleDegrees);
+
+        detector.SetMinimumAngleDegrees(355);
+        Assert.Equal(355, detector.MinimumAngleDegrees);
+        detector.SetMinimumAngleDegrees(999);
+        Assert.Equal(359, detector.MinimumAngleDegrees);
     }
 
     [Fact]

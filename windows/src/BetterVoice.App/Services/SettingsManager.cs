@@ -23,14 +23,15 @@ public sealed class SettingsManager
     private readonly string _settingsFilePath;
     private readonly object _lock = new();
     public AppSettings Current { get; private set; }
+    public event Action<AppSettings>? SettingsChanged;
 
-    public SettingsManager()
+    public SettingsManager(string? settingsFilePath = null)
     {
-        string appData = Path.Combine(
+        _settingsFilePath = settingsFilePath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "BetterVoice");
-        Directory.CreateDirectory(appData);
-        _settingsFilePath = Path.Combine(appData, "settings.json");
+            "BetterVoice", "settings.json");
+        string? appData = Path.GetDirectoryName(_settingsFilePath);
+        if (!string.IsNullOrEmpty(appData)) Directory.CreateDirectory(appData);
         Current = Load();
     }
 
@@ -57,6 +58,7 @@ public sealed class SettingsManager
 
     public void Save()
     {
+        AppSettings snapshot;
         lock (_lock)
         {
             try
@@ -68,7 +70,9 @@ public sealed class SettingsManager
             {
                 // ignored
             }
+            snapshot = Current;
         }
+        SettingsChanged?.Invoke(snapshot);
     }
 
     public void AddRecentTranscript(string text)

@@ -25,6 +25,7 @@ public sealed class AppController : IDisposable
 
     private bool _isRecording;
     private DateTime? _recordingStartedAt;
+    private TextInsertion.AppContext _recordingContext;
     private string? _currentSessionDir;
     private bool _hasGestureScreenshot;
 
@@ -42,11 +43,19 @@ public sealed class AppController : IDisposable
         _inputMonitor.ActionTriggered += OnShortcutAction;
         _inputMonitor.CircleGestureDetected += OnCircleDetected;
         _inputMonitor.MouseMoved += OnMouseMoved;
+        _settingsManager.SettingsChanged += OnSettingsChanged;
 
         _recorder.LevelChanged += level =>
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() => _hud.UpdateLevel(level));
         };
+    }
+
+    private void OnSettingsChanged(AppSettings settings)
+    {
+        _inputMonitor.QuickTriggerMode = settings.QuickTriggerMode;
+        _inputMonitor.HoldDelayMilliseconds = settings.QuickHoldDelayMilliseconds;
+        _inputMonitor.SetCircleSensitivity(settings.CircleMinimumAngleDegrees);
     }
 
     public void Start()
@@ -110,6 +119,7 @@ public sealed class AppController : IDisposable
     {
         _isRecording = true;
         _recordingStartedAt = DateTime.UtcNow;
+        _recordingContext = TextInsertion.GetCurrentContext();
         _hasGestureScreenshot = false;
 
         string sessionId = $"{DateTime.UtcNow:yyyy-MM-ddTHH-mm-ssZ}-{Guid.NewGuid()}";
@@ -141,14 +151,15 @@ public sealed class AppController : IDisposable
         _hud.SetState("Transcribing...", "BetterVoice", isRecording: false);
 
         string? audioPath = _recorder.CurrentFilePath;
-        _recorder.Stop();
+        await _recorder.StopAsync();
 
         double duration = _recordingStartedAt.HasValue
             ? (DateTime.UtcNow - _recordingStartedAt.Value).TotalSeconds
             : 0;
 
-        // Capture foreground context before it changes
-        var context = TextInsertion.GetCurrentContext();
+        // Use the app that was active when dictation began; transcription and
+        // overlays must not redirect delivery to a later foreground window.
+        var context = _recordingContext;
 
         string transcript = string.Empty;
         if (!string.IsNullOrEmpty(audioPath) && File.Exists(audioPath))
@@ -203,6 +214,7 @@ public sealed class AppController : IDisposable
     public void Dispose()
     {
         _inputMonitor.Dispose();
+        _settingsManager.SettingsChanged -= OnSettingsChanged;
         _recorder.Dispose();
         _trailOverlay.Close();
         _hud.Close();
