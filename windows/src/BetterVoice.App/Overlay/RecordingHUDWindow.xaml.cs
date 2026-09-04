@@ -1,6 +1,5 @@
 using System;
 using System.Windows;
-using System.Windows.Forms;
 using System.Windows.Interop;
 using System.Windows.Media;
 using BetterVoice.App.Native;
@@ -24,17 +23,25 @@ public partial class RecordingHUDWindow : Window
         exStyle |= Win32Api.WS_EX_LAYERED | Win32Api.WS_EX_TRANSPARENT | Win32Api.WS_EX_NOACTIVATE | Win32Api.WS_EX_TOOLWINDOW | Win32Api.WS_EX_TOPMOST;
         Win32Api.SetWindowLongPtr(hwnd, Win32Api.GWL_EXSTYLE, (IntPtr)exStyle);
 
-        // Exclude from screenshots
-        Win32Api.SetWindowDisplayAffinity(hwnd, Win32Api.WDA_EXCLUDEFROMCAPTURE);
+        // Keep the dictation HUD out of captured context by default. Explicitly allow it
+        // for product demos without weakening the normal privacy behavior.
+        bool captureHud = string.Equals(
+            Environment.GetEnvironmentVariable("BETTERVOICE_CAPTURE_HUD"),
+            "1",
+            StringComparison.Ordinal);
+        if (!captureHud)
+        {
+            Win32Api.SetWindowDisplayAffinity(hwnd, Win32Api.WDA_EXCLUDEFROMCAPTURE);
+        }
 
         Reposition();
     }
 
     public void Reposition()
     {
-        var primary = Screen.PrimaryScreen?.Bounds ?? new System.Drawing.Rectangle(0, 0, 1920, 1080);
-        Left = primary.Left + (primary.Width - ActualWidth) / 2.0;
-        Top = primary.Bottom - ActualHeight - 64;
+        Rect workArea = SystemParameters.WorkArea;
+        Left = workArea.Left + (workArea.Width - ActualWidth) / 2.0;
+        Top = workArea.Bottom - ActualHeight - 24;
     }
 
     public void SetState(string status, string micName, bool isRecording)
