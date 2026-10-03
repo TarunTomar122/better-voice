@@ -2468,6 +2468,10 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
             recordingMode = .longForm
             showStatus("Recording • long-form mode")
             updateMenuTitle("Stop long recording (\(longShortcutLabel))", enabled: true)
+        } else if state == .recording, recordingMode == .longForm {
+            // The quick modifier landed first on the way to the long chord, so the
+            // press arrived here instead of toggleRecording. It still means stop.
+            stopRecording()
         }
     }
 
