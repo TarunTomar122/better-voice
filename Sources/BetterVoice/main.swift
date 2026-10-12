@@ -840,12 +840,14 @@ private final class TrailOverlayController {
             view.layerContentsRedrawPolicy = .onSetNeedsDisplay
             view.layer?.backgroundColor = NSColor.clear.cgColor
 
+            // screen.frame is already in global coordinates. Passing `screen:` as well
+            // makes AppKit treat the rect as relative to that screen and apply its
+            // origin twice, which pushes the overlay off every non-primary display.
             let window = TrailOverlayWindow(
                 contentRect: screen.frame,
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered,
-                defer: false,
-                screen: screen
+                defer: false
             )
             window.isOpaque = false
             window.backgroundColor = .clear
