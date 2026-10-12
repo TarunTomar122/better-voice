@@ -412,11 +412,13 @@ private final class LocalTranscriber {
     }
 }
 
-private final class AudioRecorder {
+@MainActor
+private final class AudioRecorder: NSObject {
     private var engine: AVAudioEngine?
     private var audioFile: AVAudioFile?
     private var recordingURL: URL?
     var onLevel: (@MainActor @Sendable (Float) -> Void)?
+    var onInterruption: (@MainActor @Sendable () -> Void)?
 
     static func removeAbandonedRecordings() {
         let manager = FileManager.default
@@ -489,14 +491,39 @@ private final class AudioRecorder {
             try? FileManager.default.removeItem(at: url)
             throw error
         }
+
+        // macOS can reconfigure the audio route at any time (earphones
+        // plugged/unplugged, Bluetooth headset HFP reconfig, default mic
+        // swap). When that happens the engine may stop running and keep a
+        // dead tap alive on the render thread, which crashes the process
+        // later. Watch for the change and end the session gracefully.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(audioConfigurationChanged(_:)),
+            name: NSNotification.Name.AVAudioEngineConfigurationChange,
+            object: engine
+        )
+    }
+
+    @objc private func audioConfigurationChanged(_ notification: Notification) {
+        guard let engine, !engine.isRunning else { return }
+        let handler = onInterruption
+        handler?()
     }
 
     func stop() throws -> URL {
-        guard let engine, let recordingURL else { throw BetterVoiceError.sessionUnavailable }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        NotificationCenter.default.removeObserver(
+            self,
+            name: NSNotification.Name.AVAudioEngineConfigurationChange,
+            object: nil
+        )
+        if let engine {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
         self.engine = nil
         audioFile = nil
+        guard let recordingURL else { throw BetterVoiceError.sessionUnavailable }
         self.recordingURL = nil
         return recordingURL
     }
@@ -1948,6 +1975,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
             self?.showStatus(status)
         }
         recorder.onLevel = { [weak self] level in self?.recordingHUD.update(level: level) }
+        recorder.onInterruption = { [weak self] in self?.handleAudioInterruption() }
         Task {
             await transcriber.loadCachedModel()
             await transcriber.loadCachedGrammarModel()
@@ -2530,6 +2558,19 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
             }
             return false
         }
+    }
+
+    /// The system reconfigured the audio route (e.g. earphones plugged or
+    /// unplugged) and the engine could not keep running. End the session
+    /// gracefully instead of leaving a dead engine behind; the transcript
+    /// still covers everything recorded before the interruption.
+    private func handleAudioInterruption() {
+        guard state == .recording else {
+                try? _ = recorder.stop()
+            return
+        }
+        showError("Microphone was interrupted — finishing the recording with what was captured.")
+        stopRecording()
     }
 
     private func stopRecording() {
