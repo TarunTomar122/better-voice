@@ -4,3 +4,16 @@ dist/
 DerivedData/
 .DS_Store
 xcuserdata/
+
+# .NET / Windows build artifacts
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# Local demo recording sources (keep only the finalized LinkedIn demo)
+output/demo/*-raw.mp4
+output/demo/*-v*.mp4
+output/demo/*.png
+

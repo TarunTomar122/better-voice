@@ -1,0 +1,96 @@
+<Window x:Class="BetterVoice.App.UI.SetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BetterVoice Settings"
+        Height="620" Width="480"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#0F172A"
+        Foreground="#F8FAFC">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F8FAFC" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable, Segoe UI, sans-serif" />
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="Foreground" Value="#38BDF8" />
+            <Setter Property="BorderBrush" Value="#334155" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+    </Window.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20">
+        <StackPanel>
+            <!-- Header -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                <Border Width="36" Height="36" CornerRadius="8" Background="#0284C7" Margin="0,0,12,0">
+                    <TextBlock Text="BV" FontWeight="Bold" FontSize="16" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="White" />
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="BetterVoice for Windows" FontSize="18" FontWeight="Bold" />
+                    <TextBlock Text="Fast, local voice dictation &amp; gestures" FontSize="12" Foreground="#94A3B8" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Audio Input -->
+            <GroupBox Header="Audio Input">
+                <StackPanel>
+                    <TextBlock Text="Microphone" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,6" />
+                    <ComboBox x:Name="MicComboBox" Height="32" Background="#1E293B" Foreground="#0F172A" SelectionChanged="OnMicChanged" />
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Shortcut & Trigger Mode -->
+            <GroupBox Header="Shortcut &amp; Triggers">
+                <StackPanel>
+                    <TextBlock Text="Quick Note Trigger Mode" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,6" />
+                    <ComboBox x:Name="TriggerModeComboBox" Height="32" Background="#1E293B" Foreground="#0F172A" SelectionChanged="OnTriggerModeChanged">
+                        <ComboBoxItem Content="Hold Alt to record" />
+                        <ComboBoxItem Content="Press Alt to toggle" />
+                        <ComboBoxItem Content="Double-tap Alt to toggle" />
+                    </ComboBox>
+
+                    <TextBlock Text="Hold Delay (ms)" FontSize="12" Foreground="#94A3B8" Margin="0,12,0,4" />
+                    <DockPanel>
+                        <TextBlock x:Name="HoldDelayLabel" Text="140 ms" Width="55" DockPanel.Dock="Right" TextAlignment="Right" Foreground="#38BDF8" />
+                        <Slider x:Name="HoldDelaySlider" Minimum="50" Maximum="500" Value="140" TickFrequency="10" IsSnapToTickEnabled="True" ValueChanged="OnHoldDelayChanged" />
+                    </DockPanel>
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Circle Gesture Detector -->
+            <GroupBox Header="Pointer Circle Gesture">
+                <StackPanel>
+                    <TextBlock Text="Minimum Circle Angle Sensitivity" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,4" />
+                    <DockPanel>
+                        <TextBlock x:Name="AngleLabel" Text="340°" Width="55" DockPanel.Dock="Right" TextAlignment="Right" Foreground="#38BDF8" />
+                        <Slider x:Name="AngleSlider" Minimum="300" Maximum="359" Value="340" TickFrequency="1" IsSnapToTickEnabled="True" ValueChanged="OnAngleChanged" />
+                    </DockPanel>
+                    <TextBlock Text="Draw a continuous circle around text or UI elements to attach a screenshot context." FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Margin="0,6,0,0" />
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Language & Vocabulary -->
+            <GroupBox Header="Language &amp; Text Cleanup">
+                <StackPanel>
+                    <TextBlock Text="Transcription Language" FontSize="12" Foreground="#94A3B8" Margin="0,0,0,6" />
+                    <ComboBox x:Name="LanguageComboBox" Height="32" Background="#1E293B" Foreground="#0F172A" SelectionChanged="OnLanguageChanged" />
+
+                    <CheckBox x:Name="DeveloperCleanupCheckBox" Content="Developer vocabulary cleanup (casing &amp; symbols)" Margin="0,14,0,8" Foreground="#F8FAFC" Checked="OnDeveloperCleanupToggled" Unchecked="OnDeveloperCleanupToggled" />
+
+                    <Button Content="Open Custom Vocabulary (JSON)" Height="30" Background="#334155" Foreground="#F8FAFC" BorderThickness="0" Margin="0,0,0,10" Click="OnOpenVocabularyClicked" />
+
+                    <CheckBox x:Name="GrammarCorrectionCheckBox" Content="Grammar Correction (English Beta - ONNX)" Foreground="#F8FAFC" Checked="OnGrammarToggled" Unchecked="OnGrammarToggled" />
+                </StackPanel>
+            </GroupBox>
+
+            <!-- Storage & Diagnostics -->
+            <GroupBox Header="Storage &amp; Sessions">
+                <StackPanel>
+                    <Button Content="Open Session Recordings Folder" Height="30" Background="#334155" Foreground="#F8FAFC" BorderThickness="0" Click="OnOpenSessionsClicked" />
+                </StackPanel>
+            </GroupBox>
+        </StackPanel>
+    </ScrollViewer>
+</Window>

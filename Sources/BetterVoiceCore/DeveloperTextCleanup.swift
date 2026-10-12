@@ -30,6 +30,7 @@ public enum DeveloperAppProfile: String, Sendable {
 /// A conservative, zero-download pass for terms that speech models commonly mis-case.
 public enum DeveloperTextCleanup {
     private static let terms: [(String, String)] = [
+        ("better voice", "BetterVoice"),
         ("javascript", "JavaScript"), ("typescript", "TypeScript"), ("swiftui", "SwiftUI"),
         ("nextjs", "Next.js"), ("next.js", "Next.js"), ("postgresql", "PostgreSQL"),
         ("postgres", "Postgres"), ("mongodb", "MongoDB"), ("supabase", "Supabase"),
