@@ -1446,6 +1446,7 @@ private final class InputMonitor {
     private var modifierLongActive = false
     private var quickKeyActive = false
     private var quickHoldActive = false
+    private var longTriggeredDuringQuickHold = false
     private var quickNoteRecording = false
     private var quickDoubleTapDetector = ModifierDoubleTapDetector()
     private var quickToggleTapDetector = ModifierToggleTapDetector()
@@ -1715,6 +1716,7 @@ private final class InputMonitor {
     private func beginQuickShortcut() {
         guard !quickHoldActive else { return }
         quickHoldActive = true
+        longTriggeredDuringQuickHold = false
         pushToTalkTimer?.invalidate()
         let timer = Timer(
             timeInterval: TimeInterval(hotkeyConfiguration.quickHoldDelayMilliseconds) / 1000,
@@ -1755,6 +1757,10 @@ private final class InputMonitor {
         pushToTalkTimer?.invalidate()
         pushToTalkTimer = nil
         if quickHoldActive {
+            // One long trigger per quick hold: pressing the rest of the chord again
+            // while the quick modifier stays down must not toggle the recording back.
+            guard !longTriggeredDuringQuickHold else { return }
+            longTriggeredDuringQuickHold = true
             promoteToLongForm()
         } else if quickNoteRecording {
             quickNoteRecording = false
@@ -1773,6 +1779,7 @@ private final class InputMonitor {
         modifierLongActive = false
         quickKeyActive = false
         quickHoldActive = false
+        longTriggeredDuringQuickHold = false
         quickNoteRecording = false
         quickDoubleTapDetector.reset()
         quickToggleTapDetector.reset()
@@ -2589,6 +2596,10 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
             recordingMode = .longForm
             showStatus("Recording • long-form mode")
             updateMenuTitle("Stop long recording (\(longShortcutLabel))", enabled: true)
+        } else if state == .recording, recordingMode == .longForm {
+            // The quick modifier landed first on the way to the long chord, so the
+            // press arrived here instead of toggleRecording. It still means stop.
+            stopRecording()
         }
     }
 
