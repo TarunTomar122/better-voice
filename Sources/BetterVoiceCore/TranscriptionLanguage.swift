@@ -11,7 +11,7 @@ public struct TranscriptionLanguage: Sendable, Hashable {
     public let name: String
 
     static let automaticCode = "auto"
-    static let englishCode = "en"
+    public static let englishCode = "en"
 
     public init(code: String, name: String) {
         self.code = code

@@ -269,7 +269,40 @@ private final class LocalTranscriber {
     /// multilingual one, so an existing English install downloads nothing new and
     /// its transcription is unchanged.
     private var modelVersion: AsrModelVersion {
-        transcriptionLanguage.usesEnglishOnlyModel ? .v2 : .v3
+        switch dictationModel {
+        case .automatic:
+            return transcriptionLanguage.usesEnglishOnlyModel ? .v2 : .v3
+        case .englishV2:
+            return .v2
+        case .englishFast:
+            return .tdtCtc110m
+        case .multilingualV3:
+            return .v3
+        }
+    }
+
+    private static let dictationModelKey = "dictationModelChoice"
+
+    var dictationModel: DictationModelChoice {
+        DictationModelChoice(storedRaw: UserDefaults.standard.string(forKey: Self.dictationModelKey))
+    }
+
+    /// Switching model swaps which weights the decoder runs on, so the loaded
+    /// one is dropped and the cached replacement loaded when it is on disk.
+    /// Nothing downloads behind the user's back; the setup row asks first.
+    /// English-only models cannot follow the current language, so picking one
+    /// while dictating another language moves dictation back to English.
+    func setDictationModel(_ choice: DictationModelChoice) async {
+        guard choice != dictationModel, canChangeLanguage else { return }
+        UserDefaults.standard.set(choice.rawValue, forKey: Self.dictationModelKey)
+        if !choice.supportsAllLanguages, !transcriptionLanguage.usesEnglishOnlyModel {
+            UserDefaults.standard.set(
+                TranscriptionLanguage.englishCode,
+                forKey: Self.transcriptionLanguageKey
+            )
+        }
+        manager = nil
+        await loadCachedModel()
     }
 
     /// The hint filters decoder tokens by writing script. It earns its place
@@ -318,6 +351,14 @@ private final class LocalTranscriber {
     func setTranscriptionLanguage(_ language: TranscriptionLanguage) async {
         guard language != transcriptionLanguage, canChangeLanguage else { return }
         UserDefaults.standard.set(language.code, forKey: Self.transcriptionLanguageKey)
+        // The English-only decode vocabulary cannot follow a language switch;
+        // fall back to the model that can, and load whatever is on disk.
+        if !language.usesEnglishOnlyModel, !dictationModel.supportsAllLanguages {
+            UserDefaults.standard.set(
+                DictationModelChoice.automatic.rawValue,
+                forKey: Self.dictationModelKey
+            )
+        }
         manager = nil
         await loadCachedModel()
     }
@@ -1795,6 +1836,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
     private var microphoneMenu: NSMenu?
     private var recentMenu: NSMenu?
     private var languageMenu: NSMenu?
+    private var dictationModelMenu: NSMenu?
     private var statusAnimationTimer: Timer?
     private var statusFeedbackTimer: Timer?
     private var recordingLimitTimer: Timer?
@@ -1878,6 +1920,16 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
                 self.refreshSetupModel()
             }
         }
+        model.setDictationModel = { [weak self] choice in
+            guard let self, self.state == .idle, self.transcriber.canChangeLanguage else { return }
+            Task { @MainActor in
+                guard self.state == .idle, self.transcriber.canChangeLanguage else { return }
+                await self.transcriber.setDictationModel(choice)
+                self.refreshLanguageMenu()
+                self.refreshModelMenu()
+                self.refreshSetupModel()
+            }
+        }
         model.setDeveloperCleanup = { [weak self] enabled in
             self?.transcriber.setDeveloperCleanupEnabled(enabled)
         }
@@ -1933,6 +1985,12 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         languageItem.submenu = languageMenu
         self.languageMenu = languageMenu
         menu.addItem(languageItem)
+
+        let dictationModelItem = NSMenuItem(title: "Dictation Model", action: nil, keyEquivalent: "")
+        let dictationModelMenu = NSMenu()
+        dictationModelItem.submenu = dictationModelMenu
+        self.dictationModelMenu = dictationModelMenu
+        menu.addItem(dictationModelItem)
         menu.addItem(NSMenuItem.separator())
 
         let recentItem = NSMenuItem(title: "Recent", action: nil, keyEquivalent: "")
@@ -2171,6 +2229,7 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
     }
 
     private func refreshModelMenu() {
+        refreshDictationModelMenu()
         guard let modelMenuItem else { return }
         switch transcriber.state {
         case .missing:
@@ -2194,6 +2253,37 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         }
     }
 
+    private func refreshDictationModelMenu() {
+        guard let dictationModelMenu else { return }
+        dictationModelMenu.removeAllItems()
+        let enabled = state == .idle && transcriber.canChangeLanguage
+        let selected = transcriber.dictationModel
+        for choice in DictationModelChoice.allCases {
+            let item = NSMenuItem(
+                title: choice.name,
+                action: choice == selected ? nil : #selector(selectDictationModel(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = choice.rawValue
+            item.state = choice == selected ? .on : .off
+            item.isEnabled = enabled
+            dictationModelMenu.addItem(item)
+        }
+    }
+
+    @objc private func selectDictationModel(_ sender: NSMenuItem) {
+        guard state == .idle, transcriber.canChangeLanguage else { return }
+        let choice = DictationModelChoice(storedRaw: sender.representedObject as? String)
+        Task { @MainActor in
+            guard self.state == .idle else { return }
+            await self.transcriber.setDictationModel(choice)
+            self.refreshModelMenu()
+            self.refreshLanguageMenu()
+            self.refreshSetupModel()
+        }
+    }
+
     private func refreshSetupModel() {
         if #available(macOS 14.0, *) {
             setupModel.microphoneGranted = AVAudioApplication.shared.recordPermission == .granted
@@ -2207,6 +2297,9 @@ private final class AppController: NSObject, NSApplicationDelegate, NSMenuDelega
         setupModel.microphoneSelectionEnabled = state == .idle
         setupModel.transcriptionLanguage = transcriber.transcriptionLanguage
         setupModel.languageSelectionEnabled = state == .idle && transcriber.canChangeLanguage
+        setupModel.transcriptionLanguage = transcriber.transcriptionLanguage
+        setupModel.dictationModel = transcriber.dictationModel
+        setupModel.modelChoiceEnabled = state == .idle && transcriber.canChangeLanguage
         setupModel.selectedMicrophoneID = microphones.selectedUID ?? "automatic"
         setupModel.microphoneOptions = [
             SetupMicrophoneOption(

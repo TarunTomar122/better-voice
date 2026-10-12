@@ -33,6 +33,10 @@ let package = Package(
                 .product(name: "onnxruntime", package: "onnxruntime-swift-package-manager")
             ]
         ),
+        .executableTarget(
+            name: "ModelProbe",
+            dependencies: [.product(name: "FluidAudio", package: "FluidAudio")]
+        ),
         .testTarget(name: "BetterVoiceCoreTests", dependencies: ["BetterVoiceCore"])
     ]
 )

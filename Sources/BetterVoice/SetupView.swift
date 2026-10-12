@@ -89,6 +89,8 @@ final class SetupModel: ObservableObject {
     @Published var grammarSelectionEnabled = true
     @Published var transcriptionLanguage = TranscriptionLanguage.english
     @Published var languageSelectionEnabled = true
+    @Published var dictationModel = DictationModelChoice.automatic
+    @Published var modelChoiceEnabled = true
     @Published var circleMinimumAngleDegrees = 340.0
     @Published var hotkeyConfiguration = HotkeyConfiguration.standard
     @Published var hotkeyError: String?
@@ -105,6 +107,7 @@ final class SetupModel: ObservableObject {
     var setGrammarCorrection: (Bool) -> Void = { _ in }
     var setDeveloperCleanup: (Bool) -> Void = { _ in }
     var setTranscriptionLanguage: (TranscriptionLanguage) -> Void = { _ in }
+    var setDictationModel: (DictationModelChoice) -> Void = { _ in }
     var setCircleMinimumAngle: (Double) -> Void = { _ in }
     var setHotkeyConfiguration: (HotkeyConfiguration) -> Void = { _ in }
     var refresh: () -> Void = {}
@@ -299,6 +302,7 @@ struct SetupView: View {
                 action: model.downloadModel
             )
             LanguageSetupRow(model: model)
+            DictationModelSetupRow(model: model)
             GrammarSetupRow(
                 title: "Grammar cleanup (Beta)",
                 detail: "t5-tiny-gec-hone runs locally after transcription to fix punctuation and sentence structure. It falls back to the raw transcript if unavailable.",
@@ -1326,6 +1330,42 @@ private struct LanguageSetupRow: View {
             .frame(maxWidth: 260)
             .disabled(!model.languageSelectionEnabled)
             .accessibilityLabel("Dictation language")
+        }
+    }
+}
+
+private struct DictationModelSetupRow: View {
+    @ObservedObject var model: SetupModel
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "waveform.badge.magnifyingglass")
+                .foregroundStyle(Color.secondary)
+                .font(.title3)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Dictation model").fontWeight(.medium)
+                Text(model.dictationModel.detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer()
+            Picker("Dictation model", selection: Binding(
+                get: { model.dictationModel },
+                set: {
+                    model.dictationModel = $0
+                    model.setDictationModel($0)
+                }
+            )) {
+                ForEach(DictationModelChoice.allCases) { choice in
+                    Text(choice.name).tag(choice)
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: 260)
+            .disabled(!model.modelChoiceEnabled)
+            .accessibilityLabel("Dictation model")
         }
     }
 }
