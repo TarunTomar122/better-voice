@@ -38,7 +38,6 @@ func run() async throws {
     print("Transcription pass OK. Text: \"\(result.text)\"")
 }
 
-let probeDone = DispatchSemaphore(value: 0)
 Task {
     do {
         try await run()
@@ -46,7 +45,10 @@ Task {
     } catch {
         print("Probe failed: \(error)")
     }
-    probeDone.signal()
+    exit(0)
 }
-_ = probeDone.wait(timeout: .now() + 60 * 60)
-exit(0)
+// Keep the process alive while the Task finishes; a blocking wait would stop
+// the underlying executor from spinning up at all.
+while true {
+    RunLoop.main.run(mode: .default, before: Date.distantFuture)
+}
